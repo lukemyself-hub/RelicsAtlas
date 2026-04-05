@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildRenderNodes,
+  clampZoomLevel,
   clusterProjectedSites,
   getClusterFocusBounds,
   getDynamicClusterRadius,
@@ -101,5 +102,15 @@ describe("map clustering helpers", () => {
     expect(resolveClusterExpansionZoom(12, 15, 20)).toBe(15);
     expect(resolveClusterExpansionZoom(19, 19, 20)).toBe(20);
     expect(resolveClusterExpansionZoom(20, 20, 20)).toBe(20);
+  });
+
+  it("clamps all programmatic zoom targets to the POI-visible range", () => {
+    const minZoom = 3;
+    const maxZoom = 18;
+
+    expect(clampZoomLevel(21, minZoom, maxZoom)).toBe(18);
+    expect(clampZoomLevel(18, minZoom, maxZoom)).toBe(18);
+    expect(clampZoomLevel(12, minZoom, maxZoom)).toBe(12);
+    expect(clampZoomLevel(1, minZoom, maxZoom)).toBe(3);
   });
 });

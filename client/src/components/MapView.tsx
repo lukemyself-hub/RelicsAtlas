@@ -3,6 +3,7 @@ import type { MapSite } from "@/types";
 import { wgs84ToGcj02 } from "@shared/coordinate-system";
 import {
   buildRenderNodes,
+  clampZoomLevel,
   clusterProjectedSites,
   getClusterFocusBounds,
   getDynamicClusterRadius,
@@ -55,7 +56,8 @@ type DisplayMapSite = MapSite & {
 
 const CLUSTER_FIT_PADDING = [96, 96, 96, 96] as const;
 const CLUSTER_ZOOM_STEP = 2;
-const MAP_MAX_ZOOM = 20;
+const MAP_MIN_ZOOM = 3;
+const POI_VISIBLE_MAX_ZOOM = 18;
 const SITE_FOCUS_ZOOM = 15;
 const DEFAULT_VIEWPORT = {
   center: { lng: 104.2, lat: 35.86 },
@@ -169,8 +171,9 @@ export default function MapView({
 
       pendingFocusSiteIdRef.current = null;
       pendingInfoSiteIdRef.current = siteId;
+      const maxZoom = getMapMaxZoom(map);
       map.setZoomAndCenter(
-        SITE_FOCUS_ZOOM,
+        clampZoomLevel(SITE_FOCUS_ZOOM, MAP_MIN_ZOOM, maxZoom),
         new AMap.LngLat(displaySite.displayLongitude, displaySite.displayLatitude),
         true
       );
@@ -264,13 +267,17 @@ export default function MapView({
 
     const map = new AMap.Map(containerRef.current, {
       viewMode: "2D",
-      zoom: initialViewportRef.current?.zoom ?? DEFAULT_VIEWPORT.zoom,
+      zoom: clampZoomLevel(
+        initialViewportRef.current?.zoom ?? DEFAULT_VIEWPORT.zoom,
+        MAP_MIN_ZOOM,
+        POI_VISIBLE_MAX_ZOOM
+      ),
       center: [
         initialViewportRef.current?.center.lng ?? DEFAULT_VIEWPORT.center.lng,
         initialViewportRef.current?.center.lat ?? DEFAULT_VIEWPORT.center.lat,
       ],
       mapStyle: "amap://styles/light",
-      zooms: [3, MAP_MAX_ZOOM],
+      zooms: [MAP_MIN_ZOOM, POI_VISIBLE_MAX_ZOOM],
     });
 
     mapRef.current = map;
@@ -317,7 +324,7 @@ export default function MapView({
     }
 
     map.setZoomAndCenter(
-      initialViewport.zoom,
+      clampZoomLevel(initialViewport.zoom, MAP_MIN_ZOOM, getMapMaxZoom(map)),
       new AMap.LngLat(initialViewport.center.lng, initialViewport.center.lat),
       true
     );
@@ -498,7 +505,11 @@ export default function MapView({
     if (!map || !AMap || !displayUserLocation) return;
 
     closeInfoWindow();
-    map.setZoomAndCenter(12, new AMap.LngLat(displayUserLocation.lng, displayUserLocation.lat), true);
+    map.setZoomAndCenter(
+      clampZoomLevel(12, MAP_MIN_ZOOM, getMapMaxZoom(map)),
+      new AMap.LngLat(displayUserLocation.lng, displayUserLocation.lat),
+      true
+    );
     onLocateHandled?.();
   }, [closeInfoWindow, displayUserLocation, locateRequest, mapLoaded, onLocateHandled]);
 
@@ -614,9 +625,9 @@ function focusCluster(map: any, AMap: any, cluster: ClusterGroup<DisplayMapSite>
     }))
   );
   const zoomRange = map.getZooms?.();
-  const maxZoom = Array.isArray(zoomRange) ? zoomRange[1] : MAP_MAX_ZOOM;
+  const maxZoom = Array.isArray(zoomRange) ? zoomRange[1] : POI_VISIBLE_MAX_ZOOM;
   const currentZoom = map.getZoom();
-  const safeCurrentZoom = typeof currentZoom === "number" ? currentZoom : 3;
+  const safeCurrentZoom = typeof currentZoom === "number" ? currentZoom : MAP_MIN_ZOOM;
 
   if (!bounds) {
     map.setZoomAndCenter(
@@ -648,6 +659,11 @@ function focusCluster(map: any, AMap: any, cluster: ClusterGroup<DisplayMapSite>
     new AMap.LngLat(cluster.lng, cluster.lat),
     true
   );
+}
+
+function getMapMaxZoom(map: any) {
+  const zoomRange = map?.getZooms?.();
+  return Array.isArray(zoomRange) ? zoomRange[1] : POI_VISIBLE_MAX_ZOOM;
 }
 
 function isSameViewport(a: MapViewport | null | undefined, b: MapViewport | null | undefined) {

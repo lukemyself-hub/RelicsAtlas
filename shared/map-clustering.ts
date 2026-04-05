@@ -187,12 +187,16 @@ export function resolveClusterExpansionZoom(
     return maxZoom;
   }
 
-  const minimumNextZoom = Math.min(currentZoom + 2, maxZoom);
+  const minimumNextZoom = clampZoomLevel(currentZoom + 2, currentZoom, maxZoom);
   if (suggestedZoom == null || suggestedZoom <= currentZoom) {
     return minimumNextZoom;
   }
 
-  return Math.min(Math.max(suggestedZoom, minimumNextZoom), maxZoom);
+  return clampZoomLevel(Math.max(suggestedZoom, minimumNextZoom), currentZoom, maxZoom);
+}
+
+export function clampZoomLevel(targetZoom: number, minZoom: number, maxZoom: number) {
+  return clamp(targetZoom, minZoom, maxZoom);
 }
 
 function findTransitionSource(prevNodes: RenderNode[], nextNode: RenderNode) {
