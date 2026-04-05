@@ -1,27 +1,20 @@
 import rawSites from "../heritage_sites.json" with { type: "json" };
 import filterOptionsData from "../filter_options.json" with { type: "json" };
+import { normalizeHeritageSites, type RawHeritageSite } from "../shared/heritage-sites";
 
-type RawSite = {
-  id: number;
+type RawSite = RawHeritageSite & {
   categoryId?: string | null;
-  name: string;
-  era?: string | null;
-  address?: string | null;
-  type?: string | null;
-  batch?: string | null;
-  longitude: number;
-  latitude: number;
 };
 
-const allSites = (rawSites as RawSite[]).map((s) => ({
-  id: s.id as number,
-  originalId: s.id as number,
+const allSites = normalizeHeritageSites(rawSites as RawSite[]).map((s) => ({
+  id: s.id,
+  originalId: s.originalId,
   categoryId: (s.categoryId ?? null) as string | null,
   name: s.name as string,
-  era: (s.era ?? null) as string | null,
-  address: (s.address ?? null) as string | null,
-  type: (s.type ?? null) as string | null,
-  batch: (s.batch ?? null) as string | null,
+  era: s.era,
+  address: s.address,
+  type: s.type,
+  batch: s.batch,
   longitude: s.longitude as number,
   latitude: s.latitude as number,
 }));
@@ -47,8 +40,8 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
 }
 
 export async function getAllSitesForMap() {
-  return allSites.map(({ id, name, era, type, batch, longitude, latitude }) => ({
-    id, name, era, type, batch, longitude, latitude,
+  return allSites.map(({ id, originalId, name, era, address, type, batch, longitude, latitude }) => ({
+    id, originalId, name, era, address, type, batch, longitude, latitude,
   }));
 }
 

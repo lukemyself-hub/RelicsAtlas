@@ -1,98 +1,173 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import type { MapSite } from "@/types";
+import {
+  buildRenderNodes,
+  clusterProjectedSites,
+  getClusterFocusBounds,
+  getDynamicClusterRadius,
+  matchTransitionSources,
+  projectVisibleSites,
+  type ClusterGroup,
+  type RenderNode,
+} from "@shared/map-clustering";
+import {
+  animateMarkerToNode,
+  createClusterMarkerContent,
+  createSiteInfoContent,
+  createSiteMarkerContent,
+  MAP_MARKER_TRANSITION_MS,
+} from "./mapViewUi";
 
 interface MapViewProps {
   sites: MapSite[];
   onSiteClick: (siteId: number) => void;
   userLocation?: { lat: number; lng: number } | null;
   highlightSiteId?: number | null;
+  initialViewport?: {
+    center: { lat: number; lng: number };
+    zoom: number;
+  } | null;
+  onViewportChange?: (viewport: {
+    center: { lat: number; lng: number };
+    zoom: number;
+  }) => void;
+  onHighlightHandled?: (siteId: number) => void;
 }
 
-interface ClusterGroup {
-  sites: MapSite[];
-  count: number;
-  lat: number;
-  lng: number;
-}
+type MarkerRecord = {
+  marker: any;
+  node: RenderNode;
+};
 
-function getClusterDistanceKm(zoomLevel: number) {
-  if (zoomLevel <= 4) return 280;
-  if (zoomLevel <= 5) return 180;
-  if (zoomLevel <= 6) return 120;
-  if (zoomLevel <= 7) return 80;
-  if (zoomLevel <= 8) return 52;
-  if (zoomLevel <= 10) return 30;
-  return Math.max(6, 100 / Math.pow(2, zoomLevel - 3));
-}
+const CLUSTER_FIT_PADDING = [96, 96, 96, 96] as const;
+const CLUSTER_MAX_ZOOM = 12;
+const SITE_FOCUS_ZOOM = 15;
+const DEFAULT_VIEWPORT = {
+  center: { lng: 104.2, lat: 35.86 },
+  zoom: 5,
+} as const;
 
-// 基于网格的 O(n) 聚合算法，支持视口裁剪
-function clusterSites(
-  sites: MapSite[],
-  zoomLevel: number,
-  bounds?: { swLat: number; swLng: number; neLat: number; neLng: number }
-): ClusterGroup[] {
-  // 视口裁剪：只处理当前可见区域（加 20% 内边距）内的点位
-  let visible = sites;
-  if (bounds) {
-    const padLat = (bounds.neLat - bounds.swLat) * 0.2;
-    const padLng = (bounds.neLng - bounds.swLng) * 0.2;
-    visible = sites.filter(
-      (s) =>
-        s.latitude >= bounds.swLat - padLat &&
-        s.latitude <= bounds.neLat + padLat &&
-        s.longitude >= bounds.swLng - padLng &&
-        s.longitude <= bounds.neLng + padLng
-    );
-  }
-
-  if (zoomLevel >= 15 || visible.length <= 1) {
-    return visible.map((s) => ({ sites: [s], count: 1, lat: s.latitude, lng: s.longitude }));
-  }
-
-  // 全国视角下使用更激进的网格聚合，并按纬度修正经度跨度，减少首屏 DOM 压力。
-  const clusterDistKm = getClusterDistanceKm(zoomLevel);
-  const cellLatDeg = clusterDistKm / 111;
-
-  const cells = new Map<string, MapSite[]>();
-  for (const site of visible) {
-    const lngDivisor = Math.max(0.25, Math.cos((site.latitude * Math.PI) / 180));
-    const cellLngDeg = clusterDistKm / (111 * lngDivisor);
-    const key = `${Math.floor(site.latitude / cellLatDeg)},${Math.floor(site.longitude / cellLngDeg)}`;
-    if (!cells.has(key)) cells.set(key, []);
-    cells.get(key)!.push(site);
-  }
-
-  return Array.from(cells.values()).map((group) => ({
-    sites: group,
-    count: group.length,
-    lat: group.reduce((sum, s) => sum + s.latitude, 0) / group.length,
-    lng: group.reduce((sum, s) => sum + s.longitude, 0) / group.length,
-  }));
-}
-
-export default function MapView({ sites, onSiteClick, userLocation, highlightSiteId }: MapViewProps) {
+export default function MapView({
+  sites,
+  onSiteClick,
+  userLocation,
+  highlightSiteId,
+  initialViewport,
+  onViewportChange,
+  onHighlightHandled,
+}: MapViewProps) {
   const mapRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const markersRef = useRef<any[]>([]);
+  const markersRef = useRef<MarkerRecord[]>([]);
   const infoWindowRef = useRef<any>(null);
   const refreshTimerRef = useRef<number | null>(null);
+  const pendingFocusSiteIdRef = useRef<number | null>(highlightSiteId ?? null);
+  const pendingInfoSiteIdRef = useRef<number | null>(highlightSiteId ?? null);
+  const userMarkerRef = useRef<any>(null);
+  const suppressMapClickRef = useRef(false);
+  const suppressMapClickTimerRef = useRef<number | null>(null);
+  const transitionTimersRef = useRef<number[]>([]);
   const [mapLoaded, setMapLoaded] = useState(false);
 
-  // 加载高德地图 SDK
+  const clearTransitionTimers = useCallback(() => {
+    for (const timer of transitionTimersRef.current) {
+      window.clearTimeout(timer);
+    }
+    transitionTimersRef.current = [];
+  }, []);
+
+  const suppressNextMapClick = useCallback(() => {
+    suppressMapClickRef.current = true;
+    if (suppressMapClickTimerRef.current !== null) {
+      window.clearTimeout(suppressMapClickTimerRef.current);
+    }
+    suppressMapClickTimerRef.current = window.setTimeout(() => {
+      suppressMapClickRef.current = false;
+      suppressMapClickTimerRef.current = null;
+    }, 0);
+  }, []);
+
+  const closeInfoWindow = useCallback(() => {
+    if (infoWindowRef.current) {
+      infoWindowRef.current.close();
+      infoWindowRef.current = null;
+    }
+  }, []);
+
+  const openSiteInfo = useCallback(
+    (site: MapSite, marker: any, lngLat?: any) => {
+      const map = mapRef.current;
+      const AMap = (window as any).AMap;
+      if (!map || !AMap) return;
+
+      closeInfoWindow();
+
+      const infoWindow = new AMap.InfoWindow({
+        content: createSiteInfoContent(site, () => onSiteClick(site.id)),
+        isCustom: true,
+        offset: new AMap.Pixel(0, -42),
+      });
+
+      const position = lngLat ?? marker.getPosition?.();
+      if (position) {
+        infoWindow.open(map, position);
+        infoWindowRef.current = infoWindow;
+      }
+    },
+    [closeInfoWindow, onSiteClick]
+  );
+
+  const focusSite = useCallback(
+    (siteId: number) => {
+      const map = mapRef.current;
+      const AMap = (window as any).AMap;
+      if (!map || !AMap) {
+        pendingFocusSiteIdRef.current = siteId;
+        pendingInfoSiteIdRef.current = siteId;
+        return;
+      }
+
+      const site = sites.find((item) => item.id === siteId);
+      if (!site) return;
+
+      pendingFocusSiteIdRef.current = null;
+      pendingInfoSiteIdRef.current = siteId;
+      map.setZoomAndCenter(SITE_FOCUS_ZOOM, new AMap.LngLat(site.longitude, site.latitude), true);
+      onHighlightHandled?.(siteId);
+    },
+    [onHighlightHandled, sites]
+  );
+
+  const scheduleRefresh = useCallback(() => {
+    if (refreshTimerRef.current !== null) {
+      window.clearTimeout(refreshTimerRef.current);
+    }
+
+    refreshTimerRef.current = window.setTimeout(() => {
+      refreshTimerRef.current = null;
+      updateMarkersRef.current?.();
+    }, 16);
+  }, []);
+
+  const updateMarkersRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    pendingFocusSiteIdRef.current = highlightSiteId ?? null;
+    pendingInfoSiteIdRef.current = highlightSiteId ?? null;
+  }, [highlightSiteId]);
+
   useEffect(() => {
     if ((window as any).AMap) {
       setMapLoaded(true);
       return;
     }
 
-    // Must be set before the SDK script loads; routes AMap service calls through
-    // our server proxy so the jscode security key is never exposed to the client.
     (window as any)._AMapSecurityConfig = {
       serviceHost: "/_AMapService",
     };
 
     const script = document.createElement("script");
-    script.src = `https://webapi.amap.com/maps?v=2.0&key=006cfca5044ae7c111675b920aabdfc5`;
+    script.src = "https://webapi.amap.com/maps?v=2.0&key=006cfca5044ae7c111675b920aabdfc5";
     script.async = true;
     script.onload = () => {
       setMapLoaded(true);
@@ -109,7 +184,6 @@ export default function MapView({ sites, onSiteClick, userLocation, highlightSit
     };
   }, []);
 
-  // 初始化地图
   useEffect(() => {
     if (!mapLoaded || !containerRef.current || mapRef.current) return;
 
@@ -118,29 +192,44 @@ export default function MapView({ sites, onSiteClick, userLocation, highlightSit
 
     const map = new AMap.Map(containerRef.current, {
       viewMode: "2D",
-      zoom: 5,
-      center: [104.2, 35.86],
+      zoom: initialViewport?.zoom ?? DEFAULT_VIEWPORT.zoom,
+      center: [
+        initialViewport?.center.lng ?? DEFAULT_VIEWPORT.center.lng,
+        initialViewport?.center.lat ?? DEFAULT_VIEWPORT.center.lat,
+      ],
       mapStyle: "amap://styles/light",
       zooms: [3, 20],
     });
 
     mapRef.current = map;
+    AMap.plugin(["AMap.MoveAnimation"], () => {});
 
-    const scheduleRefresh = () => {
-      if (refreshTimerRef.current !== null) {
-        window.clearTimeout(refreshTimerRef.current);
-      }
-      refreshTimerRef.current = window.setTimeout(() => {
-        refreshTimerRef.current = null;
-        updateMarkers();
-      }, 16);
-    };
-
-    // 首次加载和视口稳定后再刷新，避免数据已到但地图还没真正完成首帧时 marker 不显示。
     map.on("complete", scheduleRefresh);
     map.on("moveend", scheduleRefresh);
-    map.on("zoomend", scheduleRefresh);
+    map.on("zoomchange", scheduleRefresh);
     map.on("resize", scheduleRefresh);
+    map.on("moveend", () => {
+      const center = map.getCenter?.();
+      const zoom = map.getZoom?.();
+      if (!center || typeof zoom !== "number") return;
+      onViewportChange?.({
+        center: { lat: center.getLat(), lng: center.getLng() },
+        zoom,
+      });
+    });
+    map.on("zoomchange", () => {
+      const center = map.getCenter?.();
+      const zoom = map.getZoom?.();
+      if (!center || typeof zoom !== "number") return;
+      onViewportChange?.({
+        center: { lat: center.getLat(), lng: center.getLng() },
+        zoom,
+      });
+    });
+    map.on("click", () => {
+      if (suppressMapClickRef.current) return;
+      closeInfoWindow();
+    });
 
     scheduleRefresh();
 
@@ -149,205 +238,124 @@ export default function MapView({ sites, onSiteClick, userLocation, highlightSit
         window.clearTimeout(refreshTimerRef.current);
         refreshTimerRef.current = null;
       }
+      if (suppressMapClickTimerRef.current !== null) {
+        window.clearTimeout(suppressMapClickTimerRef.current);
+        suppressMapClickTimerRef.current = null;
+      }
+      clearTransitionTimers();
+      closeInfoWindow();
       if (mapRef.current) {
         mapRef.current.destroy();
         mapRef.current = null;
       }
     };
-  }, [mapLoaded]);
+  }, [clearTransitionTimers, closeInfoWindow, initialViewport, mapLoaded, onViewportChange, scheduleRefresh]);
 
-  // 更新标记
   const updateMarkers = useCallback(() => {
     const map = mapRef.current;
-    if (!map) return;
-
     const AMap = (window as any).AMap;
-    if (!AMap) return;
+    if (!map || !AMap || !containerRef.current) return;
 
-    // 批量清除旧标记
-    if (markersRef.current.length > 0) {
-      map.remove(markersRef.current);
-      markersRef.current = [];
-    }
-
-    if (!sites.length) return;
-
-    const zoomLevel = map.getZoom();
-
-    // 获取当前视口范围用于裁剪
-    let bounds: { swLat: number; swLng: number; neLat: number; neLng: number } | undefined;
-    try {
-      const mapBounds = map.getBounds();
-      const sw = mapBounds.getSouthWest();
-      const ne = mapBounds.getNorthEast();
-      bounds = { swLat: sw.getLat(), swLng: sw.getLng(), neLat: ne.getLat(), neLng: ne.getLng() };
-    } catch {
-      // getBounds 在地图初始化阶段可能失败，此时不裁剪
-    }
-
-    const clusters = clusterSites(sites, zoomLevel, bounds);
-    const nextMarkers: any[] = [];
-    clusters.forEach(cluster => {
-      if (cluster.count === 1) {
-        // 单个标记
-        const site = cluster.sites[0];
-        
-        // 创建自定义标记内容
-        const markerContent = document.createElement("div");
-        markerContent.style.cssText = `
-          width: 28px;
-          height: 28px;
-          background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-          border: 2.5px solid white;
-          border-radius: 50% 50% 50% 0;
-          transform: rotate(-45deg);
-          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-        `;
-        
-        const innerDot = document.createElement("div");
-        innerDot.style.cssText = `
-          width: 10px;
-          height: 10px;
-          background: white;
-          border-radius: 50%;
-          transform: rotate(45deg);
-        `;
-        markerContent.appendChild(innerDot);
-
-        const marker = new AMap.Marker({
-          position: new AMap.LngLat(site.longitude, site.latitude),
-          title: site.name,
-          content: markerContent,
-          offset: new AMap.Pixel(-14, -28),
-        });
-
-        marker.setExtData({ siteId: site.id, site });
-
-        // 使用高德地图的事件系统
-        marker.on("click", (e: any) => {
-          // 关闭之前的信息窗口
-          if (infoWindowRef.current) {
-            infoWindowRef.current.close();
-          }
-
-          // 创建信息窗口内容
-          const infoContent = document.createElement("div");
-          infoContent.style.cssText = `
-            min-width: 220px;
-            padding: 14px 14px 12px;
-            background: #ffffff;
-            border-radius: 14px;
-            box-shadow: 0 16px 36px rgba(15, 23, 42, 0.18);
-            border: 1px solid rgba(148, 163, 184, 0.22);
-            font-size: 13px;
-            position: relative;
-          `;
-          infoContent.innerHTML = `
-            <div style="font-weight:600;font-size:14px;margin-bottom:6px;color:#333">${site.name}</div>
-            <div style="color:#666;font-size:12px;margin-bottom:3px">${site.era || ""}</div>
-            <div style="color:#666;font-size:12px;margin-bottom:8px">${site.type || ""} · ${site.batch || ""}</div>
-            <button id="detail-btn-${site.id}" style="width:100%;padding:6px;background:#3b82f6;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px;font-weight:500">查看详情</button>
-          `;
-
-          const infoArrow = document.createElement("div");
-          infoArrow.style.cssText = `
-            position: absolute;
-            left: 50%;
-            bottom: -8px;
-            width: 16px;
-            height: 16px;
-            background: #ffffff;
-            border-right: 1px solid rgba(148, 163, 184, 0.22);
-            border-bottom: 1px solid rgba(148, 163, 184, 0.22);
-            transform: translateX(-50%) rotate(45deg);
-          `;
-          infoContent.appendChild(infoArrow);
-
-          const infoWindow = new AMap.InfoWindow({
-            content: infoContent,
-            isCustom: true,
-            offset: new AMap.Pixel(0, -42),
-          });
-          infoWindow.open(map, e.lnglat);
-          infoWindowRef.current = infoWindow;
-
-          // 添加按钮点击事件
-          setTimeout(() => {
-            const btn = document.getElementById(`detail-btn-${site.id}`);
-            if (btn) {
-              btn.addEventListener("click", () => {
-                onSiteClick(site.id);
-              });
-            }
-          }, 0);
-        });
-
-        nextMarkers.push(marker);
-      } else {
-        // 聚合标记
-        const clusterContent = document.createElement("div");
-        clusterContent.style.cssText = `
-          width: 40px;
-          height: 40px;
-          background: #ef4444;
-          border: 2px solid white;
-          border-radius: 50%;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: bold;
-          color: white;
-          font-size: 16px;
-          cursor: pointer;
-        `;
-        clusterContent.textContent = String(cluster.count);
-
-        const marker = new AMap.Marker({
-          position: new AMap.LngLat(cluster.lng, cluster.lat),
-          content: clusterContent,
-          offset: new AMap.Pixel(-20, -20),
-        });
-
-        marker.on("click", (e: any) => {
-          map.setZoomAndCenter(map.getZoom() + 1, e.lnglat);
-        });
-
-        nextMarkers.push(marker);
+    if (!sites.length) {
+      if (markersRef.current.length > 0) {
+        map.remove(markersRef.current.map((entry) => entry.marker));
+        markersRef.current = [];
       }
+      closeInfoWindow();
+      return;
+    }
+
+    const size = map.getSize?.();
+    const viewport = {
+      width: size?.width ?? containerRef.current.clientWidth,
+      height: size?.height ?? containerRef.current.clientHeight,
+    };
+
+    const projectedSites = projectVisibleSites(sites, viewport, (site) => {
+      const point = map.lngLatToContainer(new AMap.LngLat(site.longitude, site.latitude));
+      if (!point) return null;
+      return { x: point.getX(), y: point.getY() };
     });
 
-    if (nextMarkers.length > 0) {
-      map.add(nextMarkers);
-      markersRef.current = nextMarkers;
+    const radiusPx = getDynamicClusterRadius(viewport);
+    const clusters = clusterProjectedSites(projectedSites, radiusPx, (point) => {
+      const lngLat = map.containerToLngLat(new AMap.Pixel(point.x, point.y));
+      if (!lngLat) return null;
+      return { lat: lngLat.getLat(), lng: lngLat.getLng() };
+    });
+
+    const nextNodes = matchTransitionSources(
+      markersRef.current.map((entry) => entry.node),
+      buildRenderNodes(clusters)
+    );
+    const previousMarkersByKey = new Map(markersRef.current.map((entry) => [entry.node.key, entry]));
+    const nextMarkerRecords = nextNodes.map((node) =>
+      createMarkerRecord({
+        AMap,
+        node,
+        sites,
+        sourceNode: node.sourceKey ? previousMarkersByKey.get(node.sourceKey)?.node : undefined,
+        onClusterClick: (cluster) => {
+          suppressNextMapClick();
+          focusCluster(map, AMap, cluster);
+        },
+        onSiteMarkerClick: (site, marker, lngLat) => {
+          suppressNextMapClick();
+          pendingInfoSiteIdRef.current = site.id;
+          openSiteInfo(site, marker, lngLat);
+        },
+      })
+    );
+
+    clearTransitionTimers();
+    if (markersRef.current.length > 0) {
+      map.remove(markersRef.current.map((entry) => entry.marker));
     }
-  }, [sites, onSiteClick]);
+    if (nextMarkerRecords.length > 0) {
+      map.add(nextMarkerRecords.map((entry) => entry.marker));
+    }
 
-  // 当 sites 改变时更新标记
+    for (const entry of nextMarkerRecords) {
+      animateMarkerToNode(entry.marker, entry.node, entry.node.sourceKey !== undefined);
+
+      if (pendingInfoSiteIdRef.current !== null && entry.node.type === "site") {
+        const site = sites.find((item) => item.id === pendingInfoSiteIdRef.current);
+        if (site && entry.node.siteIds[0] === site.id) {
+          const timer = window.setTimeout(() => {
+            openSiteInfo(site, entry.marker);
+            pendingInfoSiteIdRef.current = null;
+          }, MAP_MARKER_TRANSITION_MS);
+          transitionTimersRef.current.push(timer);
+        }
+      }
+    }
+
+    markersRef.current = nextMarkerRecords;
+
+    if (pendingFocusSiteIdRef.current !== null) {
+      const siteToFocus = pendingFocusSiteIdRef.current;
+      pendingFocusSiteIdRef.current = null;
+      focusSite(siteToFocus);
+    }
+  }, [clearTransitionTimers, closeInfoWindow, focusSite, onSiteClick, openSiteInfo, sites, suppressNextMapClick]);
+
+  updateMarkersRef.current = updateMarkers;
+
+  useEffect(() => {
+    scheduleRefresh();
+  }, [scheduleRefresh, sites, updateMarkers]);
+
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
-
-    const refresh = () => updateMarkers();
-    window.requestAnimationFrame(refresh);
-    const timeoutId = window.setTimeout(refresh, 120);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [sites, updateMarkers]);
-
-  // 处理用户位置
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !userLocation) return;
-
     const AMap = (window as any).AMap;
-    if (!AMap) return;
+    if (!map || !AMap) return;
+
+    if (userMarkerRef.current) {
+      map.remove(userMarkerRef.current);
+      userMarkerRef.current = null;
+    }
+
+    if (!userLocation) return;
 
     const userContent = document.createElement("div");
     userContent.style.cssText = `
@@ -366,41 +374,97 @@ export default function MapView({ sites, onSiteClick, userLocation, highlightSit
       zIndex: 1000,
     });
 
+    userMarkerRef.current = userMarker;
     map.add(userMarker);
 
     return () => {
-      map.remove(userMarker);
+      if (userMarkerRef.current) {
+        map.remove(userMarkerRef.current);
+        userMarkerRef.current = null;
+      }
     };
   }, [userLocation]);
 
-  // 高亮特定位置
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !highlightSiteId) return;
+    if (highlightSiteId == null) return;
+    focusSite(highlightSiteId);
+  }, [focusSite, highlightSiteId]);
 
-    const AMap = (window as any).AMap;
-    if (!AMap) return;
+  return <div ref={containerRef} className="w-full h-full" style={{ minHeight: "300px" }} />;
+}
 
-    const site = sites.find(s => s.id === highlightSiteId);
-    if (site) {
-      const position = new AMap.LngLat(site.longitude, site.latitude);
-      map.setZoomAndCenter(15, position, true);
+function createMarkerRecord({
+  AMap,
+  node,
+  sites,
+  sourceNode,
+  onClusterClick,
+  onSiteMarkerClick,
+}: {
+  AMap: any;
+  node: RenderNode;
+  sites: MapSite[];
+  sourceNode?: RenderNode;
+  onClusterClick: (cluster: ClusterGroup<MapSite>) => void;
+  onSiteMarkerClick: (site: MapSite, marker: any, lngLat?: any) => void;
+}): MarkerRecord {
+  const position = sourceNode ?? node;
+  const marker = new AMap.Marker({
+    position: new AMap.LngLat(position.lng, position.lat),
+    content:
+      node.type === "site"
+        ? createSiteMarkerContent()
+        : createClusterMarkerContent(node.count),
+    offset: node.type === "site" ? new AMap.Pixel(-14, -28) : new AMap.Pixel(-20, -20),
+  });
 
-      // 查找并点击对应的标记
-      setTimeout(() => {
-        const marker = markersRef.current.find(m => m.getExtData?.()?.siteId === highlightSiteId);
-        if (marker) {
-          marker.emit("click");
-        }
-      }, 500);
+  if (node.type === "site") {
+    const site = sites.find((item) => item.id === node.siteIds[0]);
+    if (!site) {
+      return { marker, node };
     }
-  }, [highlightSiteId, sites]);
 
-  return (
-    <div
-      ref={containerRef}
-      className="w-full h-full"
-      style={{ minHeight: "300px" }}
-    />
+    marker.setExtData({ siteId: site.id, site });
+    marker.on("click", (event: any) => {
+      onSiteMarkerClick(site, marker, event.lnglat);
+    });
+    marker.setTitle?.(site.name);
+  } else {
+    const clusterSites = sites.filter((site) => node.siteIds.includes(site.id));
+    const cluster: ClusterGroup<MapSite> = {
+      sites: clusterSites,
+      count: clusterSites.length,
+      lat: node.lat,
+      lng: node.lng,
+      point: node.point,
+    };
+
+    marker.on("click", () => {
+      onClusterClick(cluster);
+    });
+  }
+
+  return { marker, node };
+}
+
+function focusCluster(map: any, AMap: any, cluster: ClusterGroup<MapSite>) {
+  const bounds = getClusterFocusBounds(cluster.sites);
+  if (!bounds) return;
+
+  const [zoom, center] = map.getFitZoomAndCenterByBounds(
+    new AMap.Bounds(bounds.southWest, bounds.northEast),
+    [...CLUSTER_FIT_PADDING],
+    CLUSTER_MAX_ZOOM
+  );
+
+  if (zoom && center) {
+    map.setZoomAndCenter(zoom, center, true);
+    return;
+  }
+
+  map.setZoomAndCenter(
+    Math.min(map.getZoom() + 2, CLUSTER_MAX_ZOOM),
+    new AMap.LngLat(cluster.lng, cluster.lat),
+    true
   );
 }

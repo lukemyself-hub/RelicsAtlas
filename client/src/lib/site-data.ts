@@ -1,4 +1,5 @@
 import type { FilterOptions, HeritageSite } from "@/types";
+import { normalizeHeritageSites, type RawHeritageSite } from "@shared/heritage-sites";
 
 export const BATCH_ORDER = [
   "第一批",
@@ -19,6 +20,11 @@ export async function fetchJson<T>(url: string): Promise<T> {
     throw new Error(`Failed to load ${url}: ${response.status} ${response.statusText}`);
   }
   return (await response.json()) as T;
+}
+
+export async function fetchNormalizedSites(url: string) {
+  const sites = await fetchJson<RawHeritageSite[]>(url);
+  return normalizeHeritageSites(sites) as HeritageSite[];
 }
 
 export function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {

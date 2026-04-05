@@ -8,15 +8,20 @@ import SearchBar from "@/components/SearchBar";
 import SiteListItem from "@/components/SiteListItem";
 import SiteDetail from "@/components/SiteDetail";
 import LocationPrompt from "@/components/LocationPrompt";
-import { DEFAULT_BATCHES, buildFilterOptionsFromSites, fetchJson, haversineKm } from "@/lib/site-data";
+import { DEFAULT_BATCHES, buildFilterOptionsFromSites, fetchNormalizedSites, haversineKm } from "@/lib/site-data";
 import type { HeritageSite, SearchFilters } from "@/types";
 
 type ViewMode = "map" | "list";
+type MapViewport = {
+  center: { lat: number; lng: number };
+  zoom: number;
+};
 
 export default function Home() {
   const [viewMode, setViewMode] = useState<ViewMode>("map");
   const [selectedSiteId, setSelectedSiteId] = useState<number | null>(null);
   const [highlightSiteId, setHighlightSiteId] = useState<number | null>(null);
+  const [mapViewport, setMapViewport] = useState<MapViewport | null>(null);
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [hasPrompted, setHasPrompted] = useState(false);
   const [filters, setFilters] = useState<SearchFilters>({
@@ -48,7 +53,7 @@ export default function Home() {
     error: sitesError,
   } = useQuery({
     queryKey: ["static-map-sites"],
-    queryFn: () => fetchJson<HeritageSite[]>("/data/map-sites.json"),
+    queryFn: () => fetchNormalizedSites("/data/map-sites.json"),
     staleTime: Infinity,
   });
 
@@ -136,6 +141,14 @@ export default function Home() {
     setHighlightSiteId(siteId);
   }, []);
 
+  const handleViewportChange = useCallback((viewport: MapViewport) => {
+    setMapViewport(viewport);
+  }, []);
+
+  const handleHighlightHandled = useCallback((siteId: number) => {
+    setHighlightSiteId((current) => (current === siteId ? null : current));
+  }, []);
+
   const handleFiltersChange = useCallback((newFilters: SearchFilters) => {
     setFilters(newFilters);
     setListOffset(0);
@@ -212,6 +225,9 @@ export default function Home() {
                 onSiteClick={handleSiteClick}
                 userLocation={userLocation}
                 highlightSiteId={highlightSiteId}
+                initialViewport={mapViewport}
+                onViewportChange={handleViewportChange}
+                onHighlightHandled={handleHighlightHandled}
               />
             )}
 
