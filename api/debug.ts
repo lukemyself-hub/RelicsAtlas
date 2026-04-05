@@ -1,7 +1,7 @@
-import { getAllSitesForMap, getFilterOptions } from "../server/db";
-
 export default async function handler(_req: unknown, res: any) {
   try {
+    const dbModule = await import("../server/db.ts");
+    const { getAllSitesForMap, getFilterOptions } = dbModule;
     const [sites, filters] = await Promise.all([getAllSitesForMap(), getFilterOptions()]);
     res.status(200).json({
       ok: true,
@@ -16,6 +16,7 @@ export default async function handler(_req: unknown, res: any) {
     res.status(500).json({
       ok: false,
       error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : null,
       cwd: process.cwd(),
     });
   }
