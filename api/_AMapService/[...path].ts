@@ -1,13 +1,13 @@
 import "dotenv/config";
 import express from "express";
-import { ENV } from "../_lib/env.ts";
 
 const app = express();
+const amapSecurityKey = process.env.AMAP_SECURITY_KEY ?? "";
 
 app.use("/", async (req, res) => {
   const targetUrl = new URL(`https://restapi.amap.com${req.path}`);
   const params = new URLSearchParams(req.query as Record<string, string>);
-  params.set("jscode", ENV.amapSecurityKey);
+  params.set("jscode", amapSecurityKey);
   targetUrl.search = params.toString();
 
   try {

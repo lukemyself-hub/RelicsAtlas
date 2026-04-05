@@ -1,14 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "outputDirectory": "dist/public",
-  "functions": {
-    "api/trpc/[trpc].ts": {
-      "includeFiles": "{heritage_sites.json,filter_options.json}"
-    },
-    "api/debug.ts": {
-      "includeFiles": "{heritage_sites.json,filter_options.json}"
-    }
-  },
   "rewrites": [
     { "source": "/_AMapService/:path*", "destination": "/api/_AMapService/:path*" },
     { "source": "/:path*", "destination": "/index.html" }
