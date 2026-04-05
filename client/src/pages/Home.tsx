@@ -1,14 +1,15 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { Map, List, Locate, Loader2, Landmark } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { trpc } from "@/lib/trpc";
 import { useLocation } from "@/contexts/LocationContext";
 import MapView from "@/components/MapView";
 import SearchBar from "@/components/SearchBar";
 import SiteListItem from "@/components/SiteListItem";
 import SiteDetail from "@/components/SiteDetail";
 import LocationPrompt from "@/components/LocationPrompt";
-import type { SearchFilters } from "@/types";
+import { DEFAULT_BATCHES, buildFilterOptionsFromSites, fetchJson, haversineKm } from "@/lib/site-data";
+import type { HeritageSite, SearchFilters } from "@/types";
 
 type ViewMode = "map" | "list";
 
@@ -20,7 +21,7 @@ export default function Home() {
   const [hasPrompted, setHasPrompted] = useState(false);
   const [filters, setFilters] = useState<SearchFilters>({
     keyword: "",
-    batch: "",
+    batches: [...DEFAULT_BATCHES],
     types: [],
     era: "",
   });
@@ -41,48 +42,35 @@ export default function Home() {
     }
   }, [location.hasCheckedPermission, location.granted, location.denied, hasPrompted]);
 
-  // Fetch map data
   const {
-    data: mapData,
-    isLoading: mapLoading,
-    error: mapError,
-  } = trpc.heritage.mapData.useQuery();
+    data: allSites,
+    isLoading: sitesLoading,
+    error: sitesError,
+  } = useQuery({
+    queryKey: ["static-map-sites"],
+    queryFn: () => fetchJson<HeritageSite[]>("/data/map-sites.json"),
+    staleTime: Infinity,
+  });
 
-  // Fetch filter options
-  const { data: filterOptions, error: filterError } = trpc.heritage.filters.useQuery();
-
-  // Fetch list data
-  const searchInput = useMemo(
-    () => ({
-      keyword: filters.keyword || undefined,
-      batch: filters.batch || undefined,
-      types: filters.types.length > 0 ? filters.types : undefined,
-      era: filters.era || undefined,
-      limit: LIST_LIMIT,
-      offset: listOffset,
-      userLat: location.granted ? (location.latitude ?? undefined) : undefined,
-      userLng: location.granted ? (location.longitude ?? undefined) : undefined,
-    }),
-    [filters, listOffset, location.granted, location.latitude, location.longitude]
-  );
-
-  const {
-    data: listData,
-    isLoading: listLoading,
-    error: listError,
-  } = trpc.heritage.search.useQuery(searchInput);
-  const loadError = mapError ?? listError ?? filterError;
+  const loadError = sitesError;
 
   // Filter map data based on search/filter criteria
   const filteredMapData = useMemo(() => {
-    if (!mapData) return [];
-    let filtered = mapData;
+    if (!allSites) return [];
+    let filtered = allSites;
     if (filters.keyword) {
       const kw = filters.keyword.toLowerCase();
-      filtered = filtered.filter((s) => s.name.toLowerCase().includes(kw));
+      filtered = filtered.filter(
+        (s) =>
+          s.name.toLowerCase().includes(kw) ||
+          s.address?.toLowerCase().includes(kw) ||
+          s.type?.toLowerCase().includes(kw)
+      );
     }
-    if (filters.batch) {
-      filtered = filtered.filter((s) => s.batch === filters.batch);
+    if (filters.batches.length > 0) {
+      filtered = filtered.filter((s) => s.batch !== null && filters.batches.includes(s.batch));
+    } else {
+      filtered = [];
     }
     if (filters.types.length > 0) {
       filtered = filtered.filter((s) => filters.types.includes(s.type ?? ""));
@@ -91,7 +79,48 @@ export default function Home() {
       filtered = filtered.filter((s) => s.era?.includes(filters.era) ?? false);
     }
     return filtered;
-  }, [mapData, filters]);
+  }, [allSites, filters]);
+
+  const sortedList = useMemo(() => {
+    const withDistance = filteredMapData.map((site) => ({
+      ...site,
+      distance:
+        location.granted && location.latitude !== null && location.longitude !== null
+          ? haversineKm(location.latitude, location.longitude, site.latitude, site.longitude)
+          : undefined,
+    }));
+
+    withDistance.sort((a, b) => {
+      if (a.distance !== undefined && b.distance !== undefined) {
+        return a.distance - b.distance;
+      }
+      const batchA = a.batch ?? "";
+      const batchB = b.batch ?? "";
+      const batchCmp = batchA.localeCompare(batchB, "zh-CN");
+      return batchCmp !== 0 ? batchCmp : a.name.localeCompare(b.name, "zh-CN");
+    });
+
+    return withDistance;
+  }, [filteredMapData, location.granted, location.latitude, location.longitude]);
+
+  const listData = useMemo(() => {
+    return {
+      total: sortedList.length,
+      items: sortedList.slice(listOffset, listOffset + LIST_LIMIT),
+    };
+  }, [LIST_LIMIT, listOffset, sortedList]);
+
+  const resolvedFilterOptions = useMemo(
+    () => (allSites ? buildFilterOptionsFromSites(allSites) : undefined),
+    [allSites]
+  );
+
+  const listLoading = sitesLoading;
+  const mapLoading = sitesLoading;
+  const selectedSite = useMemo(
+    () => filteredMapData.find((site) => site.id === selectedSiteId) ?? allSites?.find((site) => site.id === selectedSiteId) ?? null,
+    [allSites, filteredMapData, selectedSiteId]
+  );
 
   const handleSiteClick = useCallback((id: number) => {
     setSelectedSiteId(id);
@@ -101,17 +130,11 @@ export default function Home() {
     setSelectedSiteId(null);
   }, []);
 
-  const handleLocateOnMap = useCallback((lat: number, lng: number) => {
+  const handleLocateOnMap = useCallback((siteId: number) => {
     setViewMode("map");
     setSelectedSiteId(null);
-    // Find site by coordinates to highlight
-    const site = mapData?.find(
-      (s) => Math.abs(s.latitude - lat) < 0.0001 && Math.abs(s.longitude - lng) < 0.0001
-    );
-    if (site) {
-      setHighlightSiteId(site.id);
-    }
-  }, [mapData]);
+    setHighlightSiteId(siteId);
+  }, []);
 
   const handleFiltersChange = useCallback((newFilters: SearchFilters) => {
     setFilters(newFilters);
@@ -159,7 +182,7 @@ export default function Home() {
             <SearchBar
               filters={filters}
               onFiltersChange={handleFiltersChange}
-              filterOptions={filterOptions}
+              filterOptions={resolvedFilterOptions}
             />
           </div>
         </div>
@@ -295,7 +318,7 @@ export default function Home() {
         {selectedSiteId && (
           <div className="absolute inset-0 bg-white z-30 overflow-hidden">
             <SiteDetail
-              siteId={selectedSiteId}
+              site={selectedSite}
               onBack={handleBack}
               onLocateOnMap={handleLocateOnMap}
             />

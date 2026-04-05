@@ -122,7 +122,7 @@ export default function MapView({ sites, onSiteClick, userLocation, highlightSit
   // 更新标记
   const updateMarkers = useCallback(() => {
     const map = mapRef.current;
-    if (!map || !sites.length) return;
+    if (!map) return;
 
     const AMap = (window as any).AMap;
     if (!AMap) return;
@@ -132,6 +132,8 @@ export default function MapView({ sites, onSiteClick, userLocation, highlightSit
       map.remove(markersRef.current);
       markersRef.current = [];
     }
+
+    if (!sites.length) return;
 
     const zoomLevel = map.getZoom();
 
@@ -147,8 +149,6 @@ export default function MapView({ sites, onSiteClick, userLocation, highlightSit
     }
 
     const clusters = clusterSites(sites, zoomLevel, bounds);
-    const newMarkers: any[] = [];
-
     clusters.forEach(cluster => {
       if (cluster.count === 1) {
         // 单个标记

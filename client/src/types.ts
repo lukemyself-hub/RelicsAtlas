@@ -1,17 +1,5 @@
-export interface MapSite {
+export interface HeritageSite {
   id: number;
-  name: string;
-  era: string | null;
-  type: string | null;
-  batch: string | null;
-  longitude: number;
-  latitude: number;
-}
-
-export interface SiteListItem {
-  id: number;
-  originalId: number;
-  categoryId: string | null;
   name: string;
   era: string | null;
   address: string | null;
@@ -19,21 +7,15 @@ export interface SiteListItem {
   batch: string | null;
   longitude: number;
   latitude: number;
+}
+
+export type MapSite = HeritageSite;
+
+export interface SiteListItem extends HeritageSite {
   distance?: number;
 }
 
-export interface SiteDetail {
-  id: number;
-  originalId: number;
-  categoryId: string | null;
-  name: string;
-  era: string | null;
-  address: string | null;
-  type: string | null;
-  batch: string | null;
-  longitude: number;
-  latitude: number;
-}
+export type SiteDetail = HeritageSite;
 
 export interface FilterOptions {
   batches: string[];
@@ -43,7 +25,7 @@ export interface FilterOptions {
 
 export interface SearchFilters {
   keyword: string;
-  batch: string;
+  batches: string[];
   types: string[];
   era: string;
 }

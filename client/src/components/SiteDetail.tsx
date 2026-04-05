@@ -1,12 +1,12 @@
-import { ArrowLeft, MapPin, Clock, Landmark, Tag, Navigation, Loader2, ExternalLink } from "lucide-react";
+import { ArrowLeft, MapPin, Clock, Landmark, Tag, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { trpc } from "@/lib/trpc";
-import { Streamdown } from "streamdown";
+import { buildFallbackIntroduction } from "@/lib/site-data";
+import type { SiteDetail as SiteDetailType } from "@/types";
 
 interface SiteDetailProps {
-  siteId: number;
+  site: SiteDetailType | null;
   onBack: () => void;
-  onLocateOnMap: (lat: number, lng: number) => void;
+  onLocateOnMap: (siteId: number) => void;
 }
 
 function getNavigationUrl(name: string, lat: number, lng: number) {
@@ -27,21 +27,7 @@ function getNavigationUrl(name: string, lat: number, lng: number) {
   return `https://uri.amap.com/marker?position=${lng},${lat}&name=${encodeURIComponent(name)}&coordinate=wgs84`;
 }
 
-export default function SiteDetail({ siteId, onBack, onLocateOnMap }: SiteDetailProps) {
-  const { data: site, isLoading: siteLoading } = trpc.heritage.detail.useQuery({ id: siteId });
-  const { data: intro, isLoading: introLoading } = trpc.heritage.introduction.useQuery(
-    { siteId },
-    { enabled: !!site }
-  );
-
-  if (siteLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    );
-  }
-
+export default function SiteDetail({ site, onBack, onLocateOnMap }: SiteDetailProps) {
   if (!site) {
     return (
       <div className="p-4 text-center text-muted-foreground">
@@ -54,6 +40,7 @@ export default function SiteDetail({ siteId, onBack, onLocateOnMap }: SiteDetail
   }
 
   const navUrl = getNavigationUrl(site.name, site.latitude, site.longitude);
+  const intro = buildFallbackIntroduction(site);
 
   return (
     <div className="flex flex-col h-full">
@@ -128,7 +115,7 @@ export default function SiteDetail({ siteId, onBack, onLocateOnMap }: SiteDetail
             variant="outline"
             size="sm"
             className="flex-1 gap-1.5"
-            onClick={() => onLocateOnMap(site.latitude, site.longitude)}
+            onClick={() => onLocateOnMap(site.id)}
           >
             <MapPin className="h-3.5 w-3.5" />
             在地图上查看
@@ -149,18 +136,7 @@ export default function SiteDetail({ siteId, onBack, onLocateOnMap }: SiteDetail
         {/* Introduction */}
         <div className="border-t border-border/40 pt-4">
           <h3 className="text-sm font-semibold text-foreground mb-2">简介</h3>
-          {introLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>正在生成介绍内容...</span>
-            </div>
-          ) : intro?.content ? (
-            <div className="text-sm text-foreground/80 leading-relaxed prose prose-sm max-w-none">
-              <Streamdown>{intro.content}</Streamdown>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">暂无介绍信息</p>
-          )}
+          <p className="text-sm text-foreground/80 leading-relaxed">{intro}</p>
         </div>
       </div>
     </div>

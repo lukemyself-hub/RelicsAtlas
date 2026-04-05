@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { SearchFilters, FilterOptions } from "@/types";
+import { BATCH_ORDER, DEFAULT_BATCHES } from "@/lib/site-data";
 
 interface SearchBarProps {
   filters: SearchFilters;
@@ -48,16 +49,19 @@ export default function SearchBar({
     return () => document.removeEventListener("mousedown", handler);
   }, [showFilters]);
 
+  const hasCustomBatchSelection =
+    filters.batches.length !== DEFAULT_BATCHES.length ||
+    DEFAULT_BATCHES.some((batch) => !filters.batches.includes(batch));
+
   const activeFilterCount =
-    [filters.batch, filters.era].filter(Boolean).length +
-    (filters.types.length > 0 ? 1 : 0);
+    (hasCustomBatchSelection ? 1 : 0) +
+    (filters.types.length > 0 ? 1 : 0) +
+    (filters.era ? 1 : 0);
 
   const clearAllFilters = () => {
     setLocalKeyword("");
-    onFiltersChange({ keyword: "", batch: "", types: [], era: "" });
+    onFiltersChange({ keyword: "", batches: [...DEFAULT_BATCHES], types: [], era: "" });
   };
-
-  const batchOrder = ["第一批", "第二批", "第三批", "第四批", "第五批", "第六批", "第七批", "第八批"];
 
   return (
     <div className="relative" ref={filterRef}>
@@ -112,26 +116,47 @@ export default function SearchBar({
                 onClick={clearAllFilters}
                 className="text-xs text-primary hover:underline"
               >
-                清除全部
+                恢复默认
               </button>
             )}
           </div>
 
-          {/* Batch filter */}
+          {/* Batch filter - multi-select */}
           <div className="mb-3">
-            <label className="text-xs text-muted-foreground mb-1.5 block">批次</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs text-muted-foreground">批次</label>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => onFiltersChange({ ...filters, batches: [...DEFAULT_BATCHES] })}
+                  className="text-xs text-primary hover:underline"
+                >
+                  前三批
+                </button>
+                <button
+                  onClick={() => onFiltersChange({ ...filters, batches: [...BATCH_ORDER] })}
+                  className="text-xs text-primary hover:underline"
+                >
+                  全选
+                </button>
+              </div>
+            </div>
             <div className="flex flex-wrap gap-1.5">
-              {batchOrder.map((b) => (
+              {BATCH_ORDER.map((b) => (
                 <button
                   key={b}
-                  onClick={() =>
+                  onClick={() => {
+                    const isSelected = filters.batches.includes(b);
+                    const next = isSelected
+                      ? filters.batches.filter((batch) => batch !== b)
+                      : [...filters.batches, b];
+
                     onFiltersChange({
                       ...filters,
-                      batch: filters.batch === b ? "" : b,
-                    })
-                  }
+                      batches: next,
+                    });
+                  }}
                   className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
-                    filters.batch === b
+                    filters.batches.includes(b)
                       ? "bg-primary text-primary-foreground border-primary"
                       : "bg-secondary/50 text-secondary-foreground border-transparent hover:bg-secondary"
                   }`}
