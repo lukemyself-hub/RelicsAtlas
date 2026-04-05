@@ -8,6 +8,9 @@ export interface HeritageSite {
   batch: string | null;
   longitude: number;
   latitude: number;
+  mapLongitude: number;
+  mapLatitude: number;
+  coordinateSource: "raw" | "override";
 }
 
 export type MapSite = HeritageSite;

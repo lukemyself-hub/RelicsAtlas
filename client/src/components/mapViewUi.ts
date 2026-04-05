@@ -124,12 +124,12 @@ export function animateMarkerToNode(marker: any, node: RenderNode, hasSource: bo
   }
 
   if (hasSource && typeof marker.moveTo === "function") {
-    marker.moveTo([node.lng, node.lat], {
+    marker.moveTo([node.anchorLng, node.anchorLat], {
       duration: MAP_MARKER_TRANSITION_MS,
       autoRotation: false,
     });
     return;
   }
 
-  marker.setPosition([node.lng, node.lat]);
+  marker.setPosition([node.anchorLng, node.anchorLat]);
 }

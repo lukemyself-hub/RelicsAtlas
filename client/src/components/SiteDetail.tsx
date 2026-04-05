@@ -40,7 +40,7 @@ export default function SiteDetail({ site, onBack, onLocateOnMap }: SiteDetailPr
     );
   }
 
-  const navUrl = getNavigationUrl(site.name, site.latitude, site.longitude);
+  const navUrl = getNavigationUrl(site.name, site.mapLatitude, site.mapLongitude);
   const introductions = introMapJson as SiteIntroductionMap;
   const intro = getSiteIntroduction(site, introductions);
   const baiduSearchUrl = buildBaiduSearchUrl(site);

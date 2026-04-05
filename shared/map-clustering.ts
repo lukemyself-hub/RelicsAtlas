@@ -31,6 +31,8 @@ export interface ClusterGroup<T extends CoordinateSite> {
   count: number;
   lat: number;
   lng: number;
+  anchorLat: number;
+  anchorLng: number;
   point: Point;
 }
 
@@ -45,6 +47,8 @@ export interface RenderNode {
   siteIds: number[];
   lat: number;
   lng: number;
+  anchorLat: number;
+  anchorLng: number;
   point: Point;
   count: number;
   sourceKey?: string;
@@ -88,6 +92,8 @@ export function clusterProjectedSites<T extends CoordinateSite>(
       count: 1,
       lat: site.latitude,
       lng: site.longitude,
+      anchorLat: site.latitude,
+      anchorLng: site.longitude,
       point,
     }));
   }
@@ -104,6 +110,19 @@ export function clusterProjectedSites<T extends CoordinateSite>(
   }
 
   return Array.from(cells.values()).map((group) => {
+    if (group.length === 1) {
+      const [{ site, point }] = group;
+      return {
+        sites: [site],
+        count: 1,
+        lat: site.latitude,
+        lng: site.longitude,
+        anchorLat: site.latitude,
+        anchorLng: site.longitude,
+        point,
+      };
+    }
+
     const point = {
       x: group.reduce((sum, item) => sum + item.point.x, 0) / group.length,
       y: group.reduce((sum, item) => sum + item.point.y, 0) / group.length,
@@ -117,6 +136,12 @@ export function clusterProjectedSites<T extends CoordinateSite>(
         center?.lat ??
         group.reduce((sum, item) => sum + item.site.latitude, 0) / group.length,
       lng:
+        center?.lng ??
+        group.reduce((sum, item) => sum + item.site.longitude, 0) / group.length,
+      anchorLat:
+        center?.lat ??
+        group.reduce((sum, item) => sum + item.site.latitude, 0) / group.length,
+      anchorLng:
         center?.lng ??
         group.reduce((sum, item) => sum + item.site.longitude, 0) / group.length,
       point,
@@ -135,6 +160,8 @@ export function buildRenderNodes<T extends CoordinateSite>(clusters: ClusterGrou
       siteIds,
       lat: cluster.lat,
       lng: cluster.lng,
+      anchorLat: cluster.anchorLat,
+      anchorLng: cluster.anchorLng,
       point: cluster.point,
       count: cluster.count,
     };

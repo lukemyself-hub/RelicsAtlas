@@ -17,6 +17,9 @@ export type SiteRecord = {
   batch: string | null;
   longitude: number;
   latitude: number;
+  mapLongitude: number;
+  mapLatitude: number;
+  coordinateSource: "raw" | "override";
 };
 
 const allSites: SiteRecord[] = normalizeHeritageSites(rawSites as RawSite[]).map((site) => ({
@@ -30,6 +33,9 @@ const allSites: SiteRecord[] = normalizeHeritageSites(rawSites as RawSite[]).map
   batch: (site.batch ?? null) as string | null,
   longitude: site.longitude as number,
   latitude: site.latitude as number,
+  mapLongitude: site.mapLongitude as number,
+  mapLatitude: site.mapLatitude as number,
+  coordinateSource: site.coordinateSource,
 }));
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
@@ -45,9 +51,35 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
 }
 
 export async function getAllSitesForMap() {
-  return allSites.map(({ id, originalId, name, era, address, type, batch, longitude, latitude }) => ({
-    id, originalId, name, era, address, type, batch, longitude, latitude,
-  }));
+  return allSites.map(
+    ({
+      id,
+      originalId,
+      name,
+      era,
+      address,
+      type,
+      batch,
+      longitude,
+      latitude,
+      mapLongitude,
+      mapLatitude,
+      coordinateSource,
+    }) => ({
+      id,
+      originalId,
+      name,
+      era,
+      address,
+      type,
+      batch,
+      longitude,
+      latitude,
+      mapLongitude,
+      mapLatitude,
+      coordinateSource,
+    })
+  );
 }
 
 export async function getSitesByBatches(batches: readonly string[]) {
@@ -86,7 +118,7 @@ export async function searchSites(params: {
   if (params.userLat !== undefined && params.userLng !== undefined) {
     const withDistance = filtered.map((site) => ({
       ...site,
-      distance: haversineKm(params.userLat!, params.userLng!, site.latitude, site.longitude),
+      distance: haversineKm(params.userLat!, params.userLng!, site.mapLatitude, site.mapLongitude),
     }));
     withDistance.sort((a, b) => a.distance - b.distance);
 

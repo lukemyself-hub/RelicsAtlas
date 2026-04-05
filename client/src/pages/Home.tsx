@@ -102,7 +102,12 @@ export default function Home() {
       ...site,
       distance:
         location.granted && location.latitude !== null && location.longitude !== null
-          ? haversineKm(location.latitude, location.longitude, site.latitude, site.longitude)
+          ? haversineKm(
+              location.latitude,
+              location.longitude,
+              site.mapLatitude,
+              site.mapLongitude
+            )
           : undefined,
     }));
 

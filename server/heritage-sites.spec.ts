@@ -32,6 +32,9 @@ describe("normalizeHeritageSites", () => {
     expect(normalized[1].id).toBe(2);
     expect(normalized[0].originalId).toBe(72);
     expect(normalized[1].originalId).toBe(72);
+    expect(normalized[0].mapLongitude).toBe(sites[0].longitude);
+    expect(normalized[0].mapLatitude).toBe(sites[0].latitude);
+    expect(normalized[0].coordinateSource).toBe("raw");
   });
 
   it("is deterministic for the same input order", () => {
@@ -51,5 +54,26 @@ describe("normalizeHeritageSites", () => {
     ];
 
     expect(normalizeHeritageSites(sites)).toEqual(normalizeHeritageSites(sites));
+  });
+
+  it("applies coordinate overrides without mutating the raw imported coordinates", () => {
+    const [normalized] = normalizeHeritageSites([
+      {
+        id: 100,
+        name: "故宫",
+        era: "明、清",
+        address: "北京市",
+        type: "古建筑",
+        batch: "第一批",
+        longitude: 116.389613749128,
+        latitude: 39.9218620254633,
+      },
+    ]);
+
+    expect(normalized.longitude).toBeCloseTo(116.389613749128, 12);
+    expect(normalized.latitude).toBeCloseTo(39.9218620254633, 12);
+    expect(normalized.mapLongitude).toBeCloseTo(116.397026, 6);
+    expect(normalized.mapLatitude).toBeCloseTo(39.923058, 6);
+    expect(normalized.coordinateSource).toBe("override");
   });
 });

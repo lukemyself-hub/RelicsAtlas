@@ -54,6 +54,11 @@ type DisplayMapSite = MapSite & {
   displayLatitude: number;
 };
 
+type ClusterDisplaySite = DisplayMapSite & {
+  longitude: number;
+  latitude: number;
+};
+
 const CLUSTER_FIT_PADDING = [96, 96, 96, 96] as const;
 const CLUSTER_ZOOM_STEP = 2;
 const MAP_MIN_ZOOM = 3;
@@ -94,7 +99,7 @@ export default function MapView({
   const displaySites = useMemo(
     () =>
       sites.map((site) => {
-        const displayPoint = wgs84ToGcj02(site.longitude, site.latitude);
+        const displayPoint = wgs84ToGcj02(site.mapLongitude, site.mapLatitude);
         return {
           ...site,
           displayLongitude: displayPoint.lng,
@@ -351,10 +356,14 @@ export default function MapView({
       height: size?.height ?? containerRef.current.clientHeight,
     };
 
-    const projectedSites = projectVisibleSites(displaySites, viewport, (site) => {
-      const point = map.lngLatToContainer(
-        new AMap.LngLat(site.displayLongitude, site.displayLatitude)
-      );
+    const clusterDisplaySites: ClusterDisplaySite[] = displaySites.map((site) => ({
+      ...site,
+      longitude: site.displayLongitude,
+      latitude: site.displayLatitude,
+    }));
+
+    const projectedSites = projectVisibleSites(clusterDisplaySites, viewport, (site) => {
+      const point = map.lngLatToContainer(new AMap.LngLat(site.longitude, site.latitude));
       if (!point) return null;
       return { x: point.getX(), y: point.getY() };
     });
@@ -538,7 +547,7 @@ function createMarkerRecord({
 }): MarkerRecord | null {
   const position = sourceNode ?? node;
   const marker = new AMap.Marker({
-    position: new AMap.LngLat(position.lng, position.lat),
+    position: new AMap.LngLat(position.anchorLng, position.anchorLat),
     content:
       node.type === "site"
         ? createSiteMarkerContent()
@@ -611,6 +620,8 @@ function buildMarkerExtData(node: RenderNode, siteById: Map<number, DisplayMapSi
       count: clusterSites.length,
       lat: node.lat,
       lng: node.lng,
+      anchorLat: node.anchorLat,
+      anchorLng: node.anchorLng,
       point: node.point,
     } satisfies ClusterGroup<DisplayMapSite>,
   };

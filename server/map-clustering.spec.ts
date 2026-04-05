@@ -60,6 +60,25 @@ describe("map clustering helpers", () => {
     expect(focusBounds!.northEast[0]).toBeGreaterThan(120.1302);
   });
 
+  it("keeps a single-site node anchored to the site coordinates", () => {
+    const site = { id: 1, latitude: 39.923058, longitude: 116.397026 };
+
+    const [cluster] = clusterProjectedSites(
+      [{ site, point: { x: 240.5, y: 180.25 } }],
+      44,
+      () => ({
+        lng: 0,
+        lat: 0,
+      })
+    );
+    const [node] = buildRenderNodes([cluster]);
+
+    expect(cluster.lng).toBeCloseTo(site.longitude, 12);
+    expect(cluster.lat).toBeCloseTo(site.latitude, 12);
+    expect(node.anchorLng).toBeCloseTo(site.longitude, 12);
+    expect(node.anchorLat).toBeCloseTo(site.latitude, 12);
+  });
+
   it("prefers the parent cluster as the transition source for split nodes", () => {
     const prevNodes = buildRenderNodes([
       {
@@ -70,6 +89,8 @@ describe("map clustering helpers", () => {
         count: 2,
         lat: 30.15,
         lng: 120.15,
+        anchorLat: 30.15,
+        anchorLng: 120.15,
         point: { x: 140, y: 220 },
       },
     ]);
@@ -80,6 +101,8 @@ describe("map clustering helpers", () => {
         count: 1,
         lat: 30.1,
         lng: 120.1,
+        anchorLat: 30.1,
+        anchorLng: 120.1,
         point: { x: 120, y: 200 },
       },
       {
@@ -87,6 +110,8 @@ describe("map clustering helpers", () => {
         count: 1,
         lat: 30.2,
         lng: 120.2,
+        anchorLat: 30.2,
+        anchorLng: 120.2,
         point: { x: 160, y: 240 },
       },
     ]);
