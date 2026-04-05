@@ -1,8 +1,8 @@
 import "dotenv/config";
 import express from "express";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { appRouter } from "../../server/routers.ts";
-import { createContext } from "../../server/_core/context.ts";
+import { appRouter } from "../_lib/router.ts";
+import { createContext } from "../_lib/context.ts";
 
 const app = express();
 

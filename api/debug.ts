@@ -1,6 +1,6 @@
 export default async function handler(_req: unknown, res: any) {
   try {
-    const dbModule = await import("../server/db.ts");
+    const dbModule = await import("./_lib/db.ts");
     const { getAllSitesForMap, getFilterOptions } = dbModule;
     const [sites, filters] = await Promise.all([getAllSitesForMap(), getFilterOptions()]);
     res.status(200).json({

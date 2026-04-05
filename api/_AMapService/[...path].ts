@@ -1,6 +1,6 @@
 import "dotenv/config";
 import express from "express";
-import { ENV } from "../../server/_core/env.ts";
+import { ENV } from "../_lib/env.ts";
 
 const app = express();
 
