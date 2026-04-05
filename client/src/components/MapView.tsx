@@ -39,8 +39,13 @@ type MarkerRecord = {
   node: RenderNode;
 };
 
+type MapViewport = {
+  center: { lat: number; lng: number };
+  zoom: number;
+};
+
 const CLUSTER_FIT_PADDING = [96, 96, 96, 96] as const;
-const CLUSTER_MAX_ZOOM = 12;
+const CLUSTER_ZOOM_STEP = 2;
 const SITE_FOCUS_ZOOM = 15;
 const DEFAULT_VIEWPORT = {
   center: { lng: 104.2, lat: 35.86 },
@@ -58,15 +63,19 @@ export default function MapView({
 }: MapViewProps) {
   const mapRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const markersRef = useRef<MarkerRecord[]>([]);
+  const markersRef = useRef<Map<string, MarkerRecord>>(new Map());
   const infoWindowRef = useRef<any>(null);
-  const refreshTimerRef = useRef<number | null>(null);
+  const refreshFrameRef = useRef<number | null>(null);
+  const pendingViewportReportRef = useRef(false);
   const pendingFocusSiteIdRef = useRef<number | null>(highlightSiteId ?? null);
   const pendingInfoSiteIdRef = useRef<number | null>(highlightSiteId ?? null);
   const userMarkerRef = useRef<any>(null);
   const suppressMapClickRef = useRef(false);
   const suppressMapClickTimerRef = useRef<number | null>(null);
   const transitionTimersRef = useRef<number[]>([]);
+  const initialViewportRef = useRef(initialViewport ?? null);
+  const onViewportChangeRef = useRef(onViewportChange);
+  const lastViewportRef = useRef<MapViewport | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
 
   const clearTransitionTimers = useCallback(() => {
@@ -138,23 +147,54 @@ export default function MapView({
     [onHighlightHandled, sites]
   );
 
-  const scheduleRefresh = useCallback(() => {
-    if (refreshTimerRef.current !== null) {
-      window.clearTimeout(refreshTimerRef.current);
-    }
+  const updateMarkersRef = useRef<(() => void) | null>(null);
 
-    refreshTimerRef.current = window.setTimeout(() => {
-      refreshTimerRef.current = null;
-      updateMarkersRef.current?.();
-    }, 16);
+  const getCurrentViewport = useCallback((): MapViewport | null => {
+    const map = mapRef.current;
+    const center = map?.getCenter?.();
+    const zoom = map?.getZoom?.();
+    if (!center || typeof zoom !== "number") return null;
+
+    return {
+      center: { lat: center.getLat(), lng: center.getLng() },
+      zoom,
+    };
   }, []);
 
-  const updateMarkersRef = useRef<(() => void) | null>(null);
+  const reportViewportChange = useCallback(() => {
+    const viewport = getCurrentViewport();
+    if (!viewport) return;
+    if (isSameViewport(lastViewportRef.current, viewport)) return;
+
+    lastViewportRef.current = viewport;
+    onViewportChangeRef.current?.(viewport);
+  }, [getCurrentViewport]);
+
+  const scheduleRefresh = useCallback((shouldReportViewport = false) => {
+    pendingViewportReportRef.current = pendingViewportReportRef.current || shouldReportViewport;
+    if (refreshFrameRef.current !== null) {
+      return;
+    }
+
+    refreshFrameRef.current = window.requestAnimationFrame(() => {
+      refreshFrameRef.current = null;
+      updateMarkersRef.current?.();
+
+      if (pendingViewportReportRef.current) {
+        pendingViewportReportRef.current = false;
+        reportViewportChange();
+      }
+    });
+  }, [reportViewportChange]);
 
   useEffect(() => {
     pendingFocusSiteIdRef.current = highlightSiteId ?? null;
     pendingInfoSiteIdRef.current = highlightSiteId ?? null;
   }, [highlightSiteId]);
+
+  useEffect(() => {
+    onViewportChangeRef.current = onViewportChange;
+  }, [onViewportChange]);
 
   useEffect(() => {
     if ((window as any).AMap) {
@@ -192,10 +232,10 @@ export default function MapView({
 
     const map = new AMap.Map(containerRef.current, {
       viewMode: "2D",
-      zoom: initialViewport?.zoom ?? DEFAULT_VIEWPORT.zoom,
+      zoom: initialViewportRef.current?.zoom ?? DEFAULT_VIEWPORT.zoom,
       center: [
-        initialViewport?.center.lng ?? DEFAULT_VIEWPORT.center.lng,
-        initialViewport?.center.lat ?? DEFAULT_VIEWPORT.center.lat,
+        initialViewportRef.current?.center.lng ?? DEFAULT_VIEWPORT.center.lng,
+        initialViewportRef.current?.center.lat ?? DEFAULT_VIEWPORT.center.lat,
       ],
       mapStyle: "amap://styles/light",
       zooms: [3, 20],
@@ -204,39 +244,21 @@ export default function MapView({
     mapRef.current = map;
     AMap.plugin(["AMap.MoveAnimation"], () => {});
 
-    map.on("complete", scheduleRefresh);
-    map.on("moveend", scheduleRefresh);
-    map.on("zoomchange", scheduleRefresh);
-    map.on("resize", scheduleRefresh);
-    map.on("moveend", () => {
-      const center = map.getCenter?.();
-      const zoom = map.getZoom?.();
-      if (!center || typeof zoom !== "number") return;
-      onViewportChange?.({
-        center: { lat: center.getLat(), lng: center.getLng() },
-        zoom,
-      });
-    });
-    map.on("zoomchange", () => {
-      const center = map.getCenter?.();
-      const zoom = map.getZoom?.();
-      if (!center || typeof zoom !== "number") return;
-      onViewportChange?.({
-        center: { lat: center.getLat(), lng: center.getLng() },
-        zoom,
-      });
-    });
+    map.on("complete", () => scheduleRefresh(true));
+    map.on("moveend", () => scheduleRefresh(true));
+    map.on("zoomend", () => scheduleRefresh(true));
+    map.on("resize", () => scheduleRefresh(true));
     map.on("click", () => {
       if (suppressMapClickRef.current) return;
       closeInfoWindow();
     });
 
-    scheduleRefresh();
+    scheduleRefresh(true);
 
     return () => {
-      if (refreshTimerRef.current !== null) {
-        window.clearTimeout(refreshTimerRef.current);
-        refreshTimerRef.current = null;
+      if (refreshFrameRef.current !== null) {
+        window.cancelAnimationFrame(refreshFrameRef.current);
+        refreshFrameRef.current = null;
       }
       if (suppressMapClickTimerRef.current !== null) {
         window.clearTimeout(suppressMapClickTimerRef.current);
@@ -249,7 +271,26 @@ export default function MapView({
         mapRef.current = null;
       }
     };
-  }, [clearTransitionTimers, closeInfoWindow, initialViewport, mapLoaded, onViewportChange, scheduleRefresh]);
+  }, [clearTransitionTimers, closeInfoWindow, mapLoaded, scheduleRefresh]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const AMap = (window as any).AMap;
+    if (!map || !AMap || !initialViewport) return;
+
+    const currentViewport = getCurrentViewport();
+    if (isSameViewport(currentViewport, initialViewport)) {
+      lastViewportRef.current = currentViewport;
+      return;
+    }
+
+    map.setZoomAndCenter(
+      initialViewport.zoom,
+      new AMap.LngLat(initialViewport.center.lng, initialViewport.center.lat),
+      true
+    );
+    scheduleRefresh(true);
+  }, [getCurrentViewport, initialViewport, scheduleRefresh]);
 
   const updateMarkers = useCallback(() => {
     const map = mapRef.current;
@@ -257,9 +298,9 @@ export default function MapView({
     if (!map || !AMap || !containerRef.current) return;
 
     if (!sites.length) {
-      if (markersRef.current.length > 0) {
-        map.remove(markersRef.current.map((entry) => entry.marker));
-        markersRef.current = [];
+      if (markersRef.current.size > 0) {
+        map.remove(Array.from(markersRef.current.values(), (entry) => entry.marker));
+        markersRef.current.clear();
       }
       closeInfoWindow();
       return;
@@ -284,17 +325,37 @@ export default function MapView({
       return { lat: lngLat.getLat(), lng: lngLat.getLng() };
     });
 
+    const siteById = new Map(sites.map((site) => [site.id, site]));
     const nextNodes = matchTransitionSources(
-      markersRef.current.map((entry) => entry.node),
+      Array.from(markersRef.current.values(), (entry) => entry.node),
       buildRenderNodes(clusters)
     );
-    const previousMarkersByKey = new Map(markersRef.current.map((entry) => [entry.node.key, entry]));
-    const nextMarkerRecords = nextNodes.map((node) =>
-      createMarkerRecord({
+    const previousMarkersByKey = new Map(markersRef.current);
+    const nextMarkerRecords = new Map<string, MarkerRecord>();
+
+    clearTransitionTimers();
+
+    for (const node of nextNodes) {
+      const existing = previousMarkersByKey.get(node.key);
+      if (existing) {
+        previousMarkersByKey.delete(node.key);
+        updateMarkerRecord({
+          node,
+          record: existing,
+          siteById,
+        });
+        nextMarkerRecords.set(node.key, {
+          marker: existing.marker,
+          node,
+        });
+        continue;
+      }
+
+      const newRecord = createMarkerRecord({
         AMap,
         node,
-        sites,
-        sourceNode: node.sourceKey ? previousMarkersByKey.get(node.sourceKey)?.node : undefined,
+        siteById,
+        sourceNode: node.sourceKey ? markersRef.current.get(node.sourceKey)?.node : undefined,
         onClusterClick: (cluster) => {
           suppressNextMapClick();
           focusCluster(map, AMap, cluster);
@@ -304,22 +365,25 @@ export default function MapView({
           pendingInfoSiteIdRef.current = site.id;
           openSiteInfo(site, marker, lngLat);
         },
-      })
-    );
+      });
 
-    clearTransitionTimers();
-    if (markersRef.current.length > 0) {
-      map.remove(markersRef.current.map((entry) => entry.marker));
-    }
-    if (nextMarkerRecords.length > 0) {
-      map.add(nextMarkerRecords.map((entry) => entry.marker));
+      if (!newRecord) {
+        continue;
+      }
+
+      nextMarkerRecords.set(node.key, newRecord);
+      map.add(newRecord.marker);
     }
 
-    for (const entry of nextMarkerRecords) {
+    if (previousMarkersByKey.size > 0) {
+      map.remove(Array.from(previousMarkersByKey.values(), (entry) => entry.marker));
+    }
+
+    for (const entry of Array.from(nextMarkerRecords.values())) {
       animateMarkerToNode(entry.marker, entry.node, entry.node.sourceKey !== undefined);
 
       if (pendingInfoSiteIdRef.current !== null && entry.node.type === "site") {
-        const site = sites.find((item) => item.id === pendingInfoSiteIdRef.current);
+        const site = siteById.get(pendingInfoSiteIdRef.current);
         if (site && entry.node.siteIds[0] === site.id) {
           const timer = window.setTimeout(() => {
             openSiteInfo(site, entry.marker);
@@ -396,18 +460,18 @@ export default function MapView({
 function createMarkerRecord({
   AMap,
   node,
-  sites,
+  siteById,
   sourceNode,
   onClusterClick,
   onSiteMarkerClick,
 }: {
   AMap: any;
   node: RenderNode;
-  sites: MapSite[];
+  siteById: Map<number, MapSite>;
   sourceNode?: RenderNode;
   onClusterClick: (cluster: ClusterGroup<MapSite>) => void;
   onSiteMarkerClick: (site: MapSite, marker: any, lngLat?: any) => void;
-}): MarkerRecord {
+}): MarkerRecord | null {
   const position = sourceNode ?? node;
   const marker = new AMap.Marker({
     position: new AMap.LngLat(position.lng, position.lat),
@@ -418,53 +482,118 @@ function createMarkerRecord({
     offset: node.type === "site" ? new AMap.Pixel(-14, -28) : new AMap.Pixel(-20, -20),
   });
 
-  if (node.type === "site") {
-    const site = sites.find((item) => item.id === node.siteIds[0]);
-    if (!site) {
-      return { marker, node };
+  const extData = buildMarkerExtData(node, siteById);
+  if (!extData) return null;
+
+  marker.setExtData(extData);
+  marker.on("click", (event: any) => {
+    const currentExtData = marker.getExtData?.();
+    if (!currentExtData) return;
+
+    if (currentExtData.kind === "site") {
+      onSiteMarkerClick(currentExtData.site, marker, event?.lnglat);
+      return;
     }
 
-    marker.setExtData({ siteId: site.id, site });
-    marker.on("click", (event: any) => {
-      onSiteMarkerClick(site, marker, event.lnglat);
-    });
-    marker.setTitle?.(site.name);
-  } else {
-    const clusterSites = sites.filter((site) => node.siteIds.includes(site.id));
-    const cluster: ClusterGroup<MapSite> = {
-      sites: clusterSites,
-      count: clusterSites.length,
-      lat: node.lat,
-      lng: node.lng,
-      point: node.point,
-    };
+    onClusterClick(currentExtData.cluster);
+  });
 
-    marker.on("click", () => {
-      onClusterClick(cluster);
-    });
+  if (extData.kind === "site") {
+    marker.setTitle?.(extData.site.name);
   }
 
   return { marker, node };
 }
 
+function updateMarkerRecord({
+  node,
+  record,
+  siteById,
+}: {
+  node: RenderNode;
+  record: MarkerRecord;
+  siteById: Map<number, MapSite>;
+}) {
+  const extData = buildMarkerExtData(node, siteById);
+  if (!extData) {
+    return;
+  }
+
+  record.marker.setExtData(extData);
+  record.marker.setTitle?.(extData.kind === "site" ? extData.site.name : "");
+  record.node = node;
+}
+
+function buildMarkerExtData(node: RenderNode, siteById: Map<number, MapSite>) {
+  if (node.type === "site") {
+    const site = siteById.get(node.siteIds[0]);
+    if (!site) return null;
+
+    return {
+      kind: "site" as const,
+      site,
+    };
+  }
+
+  const clusterSites = node.siteIds
+    .map((siteId) => siteById.get(siteId))
+    .filter((site): site is MapSite => Boolean(site));
+  if (clusterSites.length === 0) return null;
+
+  return {
+    kind: "cluster" as const,
+    cluster: {
+      sites: clusterSites,
+      count: clusterSites.length,
+      lat: node.lat,
+      lng: node.lng,
+      point: node.point,
+    } satisfies ClusterGroup<MapSite>,
+  };
+}
+
 function focusCluster(map: any, AMap: any, cluster: ClusterGroup<MapSite>) {
   const bounds = getClusterFocusBounds(cluster.sites);
-  if (!bounds) return;
+  const zoomRange = map.getZooms?.();
+  const maxZoom = Array.isArray(zoomRange) ? zoomRange[1] : 20;
+  const currentZoom = map.getZoom();
+
+  if (!bounds) {
+    map.setZoomAndCenter(
+      Math.min(currentZoom + CLUSTER_ZOOM_STEP, maxZoom),
+      new AMap.LngLat(cluster.lng, cluster.lat),
+      true
+    );
+    return;
+  }
 
   const [zoom, center] = map.getFitZoomAndCenterByBounds(
     new AMap.Bounds(bounds.southWest, bounds.northEast),
-    [...CLUSTER_FIT_PADDING],
-    CLUSTER_MAX_ZOOM
+    [...CLUSTER_FIT_PADDING]
   );
 
-  if (zoom && center) {
-    map.setZoomAndCenter(zoom, center, true);
+  if (typeof zoom === "number" && center) {
+    const nextZoom = Math.min(
+      zoom > currentZoom ? zoom : currentZoom + CLUSTER_ZOOM_STEP,
+      maxZoom
+    );
+    map.setZoomAndCenter(nextZoom, center, true);
     return;
   }
 
   map.setZoomAndCenter(
-    Math.min(map.getZoom() + 2, CLUSTER_MAX_ZOOM),
+    Math.min(currentZoom + CLUSTER_ZOOM_STEP, maxZoom),
     new AMap.LngLat(cluster.lng, cluster.lat),
     true
+  );
+}
+
+function isSameViewport(a: MapViewport | null | undefined, b: MapViewport | null | undefined) {
+  if (!a || !b) return false;
+
+  return (
+    Math.abs(a.center.lat - b.center.lat) < 1e-6 &&
+    Math.abs(a.center.lng - b.center.lng) < 1e-6 &&
+    Math.abs(a.zoom - b.zoom) < 1e-6
   );
 }
