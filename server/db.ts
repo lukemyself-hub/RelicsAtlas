@@ -1,5 +1,6 @@
-import rawSites from "../heritage_sites.json" with { type: "json" };
-import filterOptionsData from "../filter_options.json" with { type: "json" };
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 type RawSite = {
   id: number;
@@ -13,7 +14,31 @@ type RawSite = {
   latitude: number;
 };
 
-const allSites = (rawSites as RawSite[]).map((s) => ({
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+
+function readJsonFile<T>(filename: string): T {
+  const candidatePaths = [
+    path.join(process.cwd(), filename),
+    path.resolve(moduleDir, "../", filename),
+  ];
+
+  for (const candidatePath of candidatePaths) {
+    if (fs.existsSync(candidatePath)) {
+      return JSON.parse(fs.readFileSync(candidatePath, "utf-8")) as T;
+    }
+  }
+
+  throw new Error(
+    `Required data file "${filename}" was not found. Checked: ${candidatePaths.join(", ")}`
+  );
+}
+
+const rawSites = readJsonFile<RawSite[]>("heritage_sites.json");
+const filterOptionsData = readJsonFile<{ batches: string[]; types: string[]; eras: string[] }>(
+  "filter_options.json"
+);
+
+const allSites = rawSites.map((s) => ({
   id: s.id as number,
   originalId: s.id as number,
   categoryId: (s.categoryId ?? null) as string | null,

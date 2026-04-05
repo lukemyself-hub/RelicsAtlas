@@ -1,5 +1,11 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "outputDirectory": "dist/public",
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "{heritage_sites.json,filter_options.json}"
+    }
+  },
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/index" },
     { "source": "/_AMapService/:path*", "destination": "/api/index" },
