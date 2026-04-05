@@ -23,7 +23,7 @@ export const appRouter = router({
         z.object({
           keyword: z.string().optional(),
           batch: z.string().optional(),
-          type: z.string().optional(),
+          types: z.array(z.string()).optional(),
           era: z.string().optional(),
           limit: z.number().min(1).max(100).optional(),
           offset: z.number().min(0).optional(),

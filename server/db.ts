@@ -1,19 +1,19 @@
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import rawSites from "../heritage_sites.json" with { type: "json" };
+import filterOptionsData from "../filter_options.json" with { type: "json" };
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.resolve(__dirname, "../");
+type RawSite = {
+  id: number;
+  categoryId?: string | null;
+  name: string;
+  era?: string | null;
+  address?: string | null;
+  type?: string | null;
+  batch?: string | null;
+  longitude: number;
+  latitude: number;
+};
 
-const rawSites: any[] = JSON.parse(
-  fs.readFileSync(path.join(DATA_DIR, "heritage_sites.json"), "utf-8")
-);
-
-const filterOptionsData: { batches: string[]; types: string[]; eras: string[] } = JSON.parse(
-  fs.readFileSync(path.join(DATA_DIR, "filter_options.json"), "utf-8")
-);
-
-const allSites = rawSites.map((s) => ({
+const allSites = (rawSites as RawSite[]).map((s) => ({
   id: s.id as number,
   originalId: s.id as number,
   categoryId: (s.categoryId ?? null) as string | null,
@@ -55,7 +55,7 @@ export async function getAllSitesForMap() {
 export async function searchSites(params: {
   keyword?: string;
   batch?: string;
-  type?: string;
+  types?: string[];
   era?: string;
   limit?: number;
   offset?: number;
@@ -71,8 +71,8 @@ export async function searchSites(params: {
   if (params.batch) {
     filtered = filtered.filter(s => s.batch === params.batch);
   }
-  if (params.type) {
-    filtered = filtered.filter(s => s.type === params.type);
+  if (params.types?.length) {
+    filtered = filtered.filter(s => params.types!.includes(s.type ?? ""));
   }
   if (params.era) {
     const era = params.era.toLowerCase();
@@ -125,5 +125,5 @@ export async function saveSiteIntroduction(siteId: number, content: string) {
 }
 
 export async function getFilterOptions() {
-  return filterOptionsData;
+  return filterOptionsData as { batches: string[]; types: string[]; eras: string[] };
 }

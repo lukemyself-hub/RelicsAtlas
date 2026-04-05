@@ -48,11 +48,13 @@ export default function SearchBar({
     return () => document.removeEventListener("mousedown", handler);
   }, [showFilters]);
 
-  const activeFilterCount = [filters.batch, filters.type, filters.era].filter(Boolean).length;
+  const activeFilterCount =
+    [filters.batch, filters.era].filter(Boolean).length +
+    (filters.types.length > 0 ? 1 : 0);
 
   const clearAllFilters = () => {
     setLocalKeyword("");
-    onFiltersChange({ keyword: "", batch: "", type: "", era: "" });
+    onFiltersChange({ keyword: "", batch: "", types: [], era: "" });
   };
 
   const batchOrder = ["第一批", "第二批", "第三批", "第四批", "第五批", "第六批", "第七批", "第八批"];
@@ -140,28 +142,50 @@ export default function SearchBar({
             </div>
           </div>
 
-          {/* Type filter */}
+          {/* Type filter - multi-select */}
           <div className="mb-3">
-            <label className="text-xs text-muted-foreground mb-1.5 block">文物类型</label>
-            <div className="flex flex-wrap gap-1.5">
-              {(filterOptions?.types || []).map((t) => (
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs text-muted-foreground">文物类型</label>
+              {filters.types.length > 0 && (
                 <button
-                  key={t}
-                  onClick={() =>
-                    onFiltersChange({
-                      ...filters,
-                      type: filters.type === t ? "" : t,
-                    })
-                  }
-                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
-                    filters.type === t
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-secondary/50 text-secondary-foreground border-transparent hover:bg-secondary"
-                  }`}
+                  onClick={() => onFiltersChange({ ...filters, types: [] })}
+                  className="text-xs text-primary hover:underline"
                 >
-                  {t}
+                  全选
                 </button>
-              ))}
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {(filterOptions?.types || []).map((t) => {
+                const allTypes = filterOptions?.types || [];
+                const isSelected = filters.types.length === 0 || filters.types.includes(t);
+                return (
+                  <button
+                    key={t}
+                    onClick={() => {
+                      if (filters.types.length === 0) {
+                        // All selected → deselect this one
+                        onFiltersChange({ ...filters, types: allTypes.filter((x) => x !== t) });
+                      } else if (filters.types.includes(t)) {
+                        const next = filters.types.filter((x) => x !== t);
+                        // If deselecting the last one, reset to all
+                        onFiltersChange({ ...filters, types: next.length === 0 ? [] : next });
+                      } else {
+                        const next = [...filters.types, t];
+                        // If all are now selected, reset to empty (= all)
+                        onFiltersChange({ ...filters, types: next.length === allTypes.length ? [] : next });
+                      }
+                    }}
+                    className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                      isSelected
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-secondary/50 text-secondary-foreground border-transparent hover:bg-secondary"
+                    }`}
+                  >
+                    {t}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

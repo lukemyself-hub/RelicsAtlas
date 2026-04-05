@@ -8,41 +8,47 @@ interface MapViewProps {
   highlightSiteId?: number | null;
 }
 
-// 简单的聚合算法
-function clusterSites(sites: MapSite[], zoomLevel: number) {
-  if (zoomLevel >= 15 || sites.length <= 1) {
-    return sites.map(site => ({ sites: [site], count: 1, lat: site.latitude, lng: site.longitude }));
+// 基于网格的 O(n) 聚合算法，支持视口裁剪
+function clusterSites(
+  sites: MapSite[],
+  zoomLevel: number,
+  bounds?: { swLat: number; swLng: number; neLat: number; neLng: number }
+) {
+  // 视口裁剪：只处理当前可见区域（加 20% 内边距）内的点位
+  let visible = sites;
+  if (bounds) {
+    const padLat = (bounds.neLat - bounds.swLat) * 0.2;
+    const padLng = (bounds.neLng - bounds.swLng) * 0.2;
+    visible = sites.filter(
+      (s) =>
+        s.latitude >= bounds.swLat - padLat &&
+        s.latitude <= bounds.neLat + padLat &&
+        s.longitude >= bounds.swLng - padLng &&
+        s.longitude <= bounds.neLng + padLng
+    );
   }
 
-  const clusters: Array<{ sites: MapSite[]; count: number; lat: number; lng: number }> = [];
-  const processed = new Set<number>();
-  const clusterDistance = 100 / Math.pow(2, zoomLevel - 3);
+  if (zoomLevel >= 15 || visible.length <= 1) {
+    return visible.map((s) => ({ sites: [s], count: 1, lat: s.latitude, lng: s.longitude }));
+  }
 
-  sites.forEach(site => {
-    if (processed.has(site.id)) return;
+  // 网格单元大小（度）— 与原来的 clusterDistance 保持相同物理尺度
+  const clusterDistKm = 100 / Math.pow(2, zoomLevel - 3);
+  const cellDeg = clusterDistKm / 111;
 
-    const cluster = [site];
-    processed.add(site.id);
+  const cells = new Map<string, MapSite[]>();
+  for (const site of visible) {
+    const key = `${Math.floor(site.latitude / cellDeg)},${Math.floor(site.longitude / cellDeg)}`;
+    if (!cells.has(key)) cells.set(key, []);
+    cells.get(key)!.push(site);
+  }
 
-    sites.forEach(other => {
-      if (processed.has(other.id)) return;
-      
-      const dx = (other.longitude - site.longitude) * 111 * Math.cos((site.latitude * Math.PI) / 180);
-      const dy = (other.latitude - site.latitude) * 111;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-
-      if (distance < clusterDistance) {
-        cluster.push(other);
-        processed.add(other.id);
-      }
-    });
-
-    const avgLat = cluster.reduce((sum, s) => sum + s.latitude, 0) / cluster.length;
-    const avgLng = cluster.reduce((sum, s) => sum + s.longitude, 0) / cluster.length;
-    clusters.push({ sites: cluster, count: cluster.length, lat: avgLat, lng: avgLng });
-  });
-
-  return clusters;
+  return Array.from(cells.values()).map((group) => ({
+    sites: group,
+    count: group.length,
+    lat: group.reduce((sum, s) => sum + s.latitude, 0) / group.length,
+    lng: group.reduce((sum, s) => sum + s.longitude, 0) / group.length,
+  }));
 }
 
 export default function MapView({ sites, onSiteClick, userLocation, highlightSiteId }: MapViewProps) {
@@ -121,14 +127,27 @@ export default function MapView({ sites, onSiteClick, userLocation, highlightSit
     const AMap = (window as any).AMap;
     if (!AMap) return;
 
-    // 清除旧标记
-    markersRef.current.forEach(marker => {
-      map.remove(marker);
-    });
-    markersRef.current = [];
+    // 批量清除旧标记
+    if (markersRef.current.length > 0) {
+      map.remove(markersRef.current);
+      markersRef.current = [];
+    }
 
     const zoomLevel = map.getZoom();
-    const clusters = clusterSites(sites, zoomLevel);
+
+    // 获取当前视口范围用于裁剪
+    let bounds: { swLat: number; swLng: number; neLat: number; neLng: number } | undefined;
+    try {
+      const mapBounds = map.getBounds();
+      const sw = mapBounds.getSouthWest();
+      const ne = mapBounds.getNorthEast();
+      bounds = { swLat: sw.getLat(), swLng: sw.getLng(), neLat: ne.getLat(), neLng: ne.getLng() };
+    } catch {
+      // getBounds 在地图初始化阶段可能失败，此时不裁剪
+    }
+
+    const clusters = clusterSites(sites, zoomLevel, bounds);
+    const newMarkers: any[] = [];
 
     clusters.forEach(cluster => {
       if (cluster.count === 1) {

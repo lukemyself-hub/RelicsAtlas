@@ -44,6 +44,6 @@ export interface FilterOptions {
 export interface SearchFilters {
   keyword: string;
   batch: string;
-  type: string;
+  types: string[];
   era: string;
 }

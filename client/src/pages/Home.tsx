@@ -21,7 +21,7 @@ export default function Home() {
   const [filters, setFilters] = useState<SearchFilters>({
     keyword: "",
     batch: "",
-    type: "",
+    types: [],
     era: "",
   });
   const [listOffset, setListOffset] = useState(0);
@@ -42,17 +42,21 @@ export default function Home() {
   }, [location.hasCheckedPermission, location.granted, location.denied, hasPrompted]);
 
   // Fetch map data
-  const { data: mapData, isLoading: mapLoading } = trpc.heritage.mapData.useQuery();
+  const {
+    data: mapData,
+    isLoading: mapLoading,
+    error: mapError,
+  } = trpc.heritage.mapData.useQuery();
 
   // Fetch filter options
-  const { data: filterOptions } = trpc.heritage.filters.useQuery();
+  const { data: filterOptions, error: filterError } = trpc.heritage.filters.useQuery();
 
   // Fetch list data
   const searchInput = useMemo(
     () => ({
       keyword: filters.keyword || undefined,
       batch: filters.batch || undefined,
-      type: filters.type || undefined,
+      types: filters.types.length > 0 ? filters.types : undefined,
       era: filters.era || undefined,
       limit: LIST_LIMIT,
       offset: listOffset,
@@ -62,7 +66,12 @@ export default function Home() {
     [filters, listOffset, location.granted, location.latitude, location.longitude]
   );
 
-  const { data: listData, isLoading: listLoading } = trpc.heritage.search.useQuery(searchInput);
+  const {
+    data: listData,
+    isLoading: listLoading,
+    error: listError,
+  } = trpc.heritage.search.useQuery(searchInput);
+  const loadError = mapError ?? listError ?? filterError;
 
   // Filter map data based on search/filter criteria
   const filteredMapData = useMemo(() => {
@@ -75,8 +84,8 @@ export default function Home() {
     if (filters.batch) {
       filtered = filtered.filter((s) => s.batch === filters.batch);
     }
-    if (filters.type) {
-      filtered = filtered.filter((s) => s.type === filters.type);
+    if (filters.types.length > 0) {
+      filtered = filtered.filter((s) => filters.types.includes(s.type ?? ""));
     }
     if (filters.era) {
       filtered = filtered.filter((s) => s.era?.includes(filters.era) ?? false);
@@ -161,7 +170,16 @@ export default function Home() {
         {/* Map view */}
         {viewMode === "map" && !selectedSiteId && (
           <div className="absolute inset-0">
-            {mapLoading ? (
+            {loadError ? (
+              <div className="flex items-center justify-center h-full px-6 text-center">
+                <div className="max-w-sm rounded-xl border border-destructive/20 bg-white p-4 shadow-sm">
+                  <p className="text-sm font-medium text-foreground">POI 数据加载失败</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    页面已渲染，但文保点位数据暂时没有成功返回。刷新后若仍为空，通常是服务端数据源没有被正确打包到部署环境。
+                  </p>
+                </div>
+              </div>
+            ) : mapLoading ? (
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
@@ -223,6 +241,11 @@ export default function Home() {
               {listLoading ? (
                 <div className="flex items-center justify-center h-32">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : loadError ? (
+                <div className="flex flex-col items-center justify-center h-32 text-muted-foreground px-6 text-center">
+                  <p className="text-sm text-foreground">列表数据加载失败</p>
+                  <p className="mt-1 text-xs">请稍后刷新重试；如果部署刚更新，通常重新部署后即可恢复。</p>
                 </div>
               ) : listData?.items.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
