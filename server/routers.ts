@@ -1,5 +1,7 @@
 import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
+import { COOKIE_NAME } from "../shared/const";
+import { getSessionCookieOptions } from "./_core/cookies";
 import {
   getAllSitesForMap,
   searchSites,
@@ -11,6 +13,16 @@ import {
 import { invokeLLM } from "./_core/llm";
 
 export const appRouter = router({
+  auth: router({
+    logout: publicProcedure.mutation(({ ctx }) => {
+      ctx.res.clearCookie(COOKIE_NAME, {
+        ...getSessionCookieOptions(ctx.req),
+        maxAge: -1,
+      });
+
+      return { success: true };
+    }),
+  }),
   heritage: router({
     // Get all sites for map display (lightweight: id, name, lat, lng, type, batch, era)
     mapData: publicProcedure.query(async () => {

@@ -1,5 +1,6 @@
 export interface HeritageSite {
   id: number;
+  originalId: number;
   name: string;
   era: string | null;
   address: string | null;
