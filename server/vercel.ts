@@ -10,8 +10,7 @@ const app = express();
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-// AMap security proxy - appends jscode server-side so it never reaches the client
-app.use("/_AMapService", async (req, res) => {
+async function handleAMapProxy(req: express.Request, res: express.Response) {
   const targetUrl = new URL(`https://restapi.amap.com${req.path}`);
   const params = new URLSearchParams(req.query as Record<string, string>);
   params.set("jscode", ENV.amapSecurityKey);
@@ -26,13 +25,17 @@ app.use("/_AMapService", async (req, res) => {
   } catch {
     res.status(502).json({ error: "AMap proxy error" });
   }
-});
+}
+
+// AMap security proxy - appends jscode server-side so it never reaches the client
+app.use("/_AMapService", handleAMapProxy);
+app.use("/api/index/_AMapService", handleAMapProxy);
 
 // tRPC API
-app.use(
-  "/api/trpc",
-  createExpressMiddleware({ router: appRouter, createContext })
-);
+const trpcMiddleware = createExpressMiddleware({ router: appRouter, createContext });
+app.use("/api/trpc", trpcMiddleware);
+app.use("/api/index/api/trpc", trpcMiddleware);
+app.use("/api/index/trpc", trpcMiddleware);
 
 // Vercel serves dist/public/ as static assets via CDN — no serveStatic() needed here.
 export default app;

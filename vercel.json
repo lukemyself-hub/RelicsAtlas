@@ -7,8 +7,8 @@
     }
   },
   "rewrites": [
-    { "source": "/api/:path*", "destination": "/api/index" },
-    { "source": "/_AMapService/:path*", "destination": "/api/index" },
+    { "source": "/api/:path*", "destination": "/api/index/api/:path*" },
+    { "source": "/_AMapService/:path*", "destination": "/api/index/_AMapService/:path*" },
     { "source": "/:path*", "destination": "/index.html" }
   ]
 }

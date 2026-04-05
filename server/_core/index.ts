@@ -33,8 +33,7 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
-  // AMap security proxy - appends jscode server-side so it never reaches the client
-  app.use("/_AMapService", async (req, res) => {
+  async function handleAMapProxy(req: express.Request, res: express.Response) {
     const targetUrl = new URL(`https://restapi.amap.com${req.path}`);
     const params = new URLSearchParams(req.query as Record<string, string>);
     params.set("jscode", ENV.amapSecurityKey);
@@ -49,16 +48,17 @@ async function startServer() {
     } catch {
       res.status(502).json({ error: "AMap proxy error" });
     }
-  });
+  }
+
+  // AMap security proxy - appends jscode server-side so it never reaches the client
+  app.use("/_AMapService", handleAMapProxy);
 
   // tRPC API
-  app.use(
-    "/api/trpc",
-    createExpressMiddleware({
-      router: appRouter,
-      createContext,
-    })
-  );
+  const trpcMiddleware = createExpressMiddleware({
+    router: appRouter,
+    createContext,
+  });
+  app.use("/api/trpc", trpcMiddleware);
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
