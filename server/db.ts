@@ -6,26 +6,31 @@ type RawSite = RawHeritageSite & {
   categoryId?: string | null;
 };
 
-const allSites = normalizeHeritageSites(rawSites as RawSite[]).map((s) => ({
-  id: s.id,
-  originalId: s.originalId,
-  categoryId: (s.categoryId ?? null) as string | null,
-  name: s.name as string,
-  era: s.era,
-  address: s.address,
-  type: s.type,
-  batch: s.batch,
-  longitude: s.longitude as number,
-  latitude: s.latitude as number,
-}));
-
-const introCache = new Map<number, {
+export type SiteRecord = {
   id: number;
-  siteId: number;
-  content: string;
-  createdAt: Date;
-  updatedAt: Date;
-}>();
+  originalId: number;
+  categoryId: string | null;
+  name: string;
+  era: string | null;
+  address: string | null;
+  type: string | null;
+  batch: string | null;
+  longitude: number;
+  latitude: number;
+};
+
+const allSites: SiteRecord[] = normalizeHeritageSites(rawSites as RawSite[]).map((site) => ({
+  id: site.id,
+  originalId: site.originalId,
+  categoryId: (site.categoryId ?? null) as string | null,
+  name: site.name as string,
+  era: (site.era ?? null) as string | null,
+  address: (site.address ?? null) as string | null,
+  type: (site.type ?? null) as string | null,
+  batch: (site.batch ?? null) as string | null,
+  longitude: site.longitude as number,
+  latitude: site.latitude as number,
+}));
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371;
@@ -45,6 +50,10 @@ export async function getAllSitesForMap() {
   }));
 }
 
+export async function getSitesByBatches(batches: readonly string[]) {
+  return allSites.filter((site) => site.batch !== null && batches.includes(site.batch));
+}
+
 export async function searchSites(params: {
   keyword?: string;
   batch?: string;
@@ -59,62 +68,45 @@ export async function searchSites(params: {
 
   if (params.keyword) {
     const kw = params.keyword.toLowerCase();
-    filtered = filtered.filter(s => s.name.toLowerCase().includes(kw));
+    filtered = filtered.filter((site) => site.name.toLowerCase().includes(kw));
   }
   if (params.batch) {
-    filtered = filtered.filter(s => s.batch === params.batch);
+    filtered = filtered.filter((site) => site.batch === params.batch);
   }
   if (params.types?.length) {
-    filtered = filtered.filter(s => params.types!.includes(s.type ?? ""));
+    filtered = filtered.filter((site) => params.types!.includes(site.type ?? ""));
   }
   if (params.era) {
     const era = params.era.toLowerCase();
-    filtered = filtered.filter(s => s.era?.toLowerCase().includes(era) ?? false);
+    filtered = filtered.filter((site) => site.era?.toLowerCase().includes(era) ?? false);
   }
 
   const total = filtered.length;
 
   if (params.userLat !== undefined && params.userLng !== undefined) {
-    const userLat = params.userLat;
-    const userLng = params.userLng;
-    const withDistance = filtered.map(s => ({
-      ...s,
-      distance: haversineKm(userLat, userLng, s.latitude, s.longitude),
+    const withDistance = filtered.map((site) => ({
+      ...site,
+      distance: haversineKm(params.userLat!, params.userLng!, site.latitude, site.longitude),
     }));
     withDistance.sort((a, b) => a.distance - b.distance);
 
     const limit = params.limit ?? 50;
     const offset = params.offset ?? 0;
     return { items: withDistance.slice(offset, offset + limit), total };
-  } else {
-    filtered = [...filtered].sort((a, b) => {
-      const batchCmp = (a.batch ?? "").localeCompare(b.batch ?? "");
-      return batchCmp !== 0 ? batchCmp : a.name.localeCompare(b.name);
-    });
-
-    const limit = params.limit ?? 50;
-    const offset = params.offset ?? 0;
-    return { items: filtered.slice(offset, offset + limit), total };
   }
+
+  filtered = [...filtered].sort((a, b) => {
+    const batchCmp = (a.batch ?? "").localeCompare(b.batch ?? "");
+    return batchCmp !== 0 ? batchCmp : a.name.localeCompare(b.name);
+  });
+
+  const limit = params.limit ?? 50;
+  const offset = params.offset ?? 0;
+  return { items: filtered.slice(offset, offset + limit), total };
 }
 
 export async function getSiteById(id: number) {
-  return allSites.find(s => s.id === id) ?? null;
-}
-
-export async function getSiteIntroduction(siteId: number) {
-  return introCache.get(siteId) ?? null;
-}
-
-export async function saveSiteIntroduction(siteId: number, content: string) {
-  const existing = introCache.get(siteId);
-  introCache.set(siteId, {
-    id: siteId,
-    siteId,
-    content,
-    createdAt: existing?.createdAt ?? new Date(),
-    updatedAt: new Date(),
-  });
+  return allSites.find((site) => site.id === id) ?? null;
 }
 
 export async function getFilterOptions() {

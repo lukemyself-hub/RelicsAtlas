@@ -18,6 +18,8 @@ export interface SiteListItem extends HeritageSite {
 
 export type SiteDetail = HeritageSite;
 
+export type SiteIntroductionMap = Record<string, string>;
+
 export interface FilterOptions {
   batches: string[];
   types: string[];

@@ -1,8 +1,17 @@
-import { useState, useCallback, useRef, useEffect } from "react";
-import { Search, X, SlidersHorizontal, ChevronDown } from "lucide-react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { Search, X, SlidersHorizontal, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 import type { SearchFilters, FilterOptions } from "@/types";
 import { BATCH_ORDER, DEFAULT_BATCHES } from "@/lib/site-data";
 
@@ -21,6 +30,7 @@ export default function SearchBar({
 }: SearchBarProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [localKeyword, setLocalKeyword] = useState(filters.keyword);
+  const [eraKeyword, setEraKeyword] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const filterRef = useRef<HTMLDivElement>(null);
 
@@ -35,7 +45,11 @@ export default function SearchBar({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [localKeyword]);
+  }, [filters, localKeyword, onFiltersChange]);
+
+  useEffect(() => {
+    setLocalKeyword(filters.keyword);
+  }, [filters.keyword]);
 
   // Close filter panel on outside click
   useEffect(() => {
@@ -49,6 +63,12 @@ export default function SearchBar({
     return () => document.removeEventListener("mousedown", handler);
   }, [showFilters]);
 
+  useEffect(() => {
+    if (!showFilters) {
+      setEraKeyword("");
+    }
+  }, [showFilters]);
+
   const hasCustomBatchSelection =
     filters.batches.length !== DEFAULT_BATCHES.length ||
     DEFAULT_BATCHES.some((batch) => !filters.batches.includes(batch));
@@ -57,6 +77,16 @@ export default function SearchBar({
     (hasCustomBatchSelection ? 1 : 0) +
     (filters.types.length > 0 ? 1 : 0) +
     (filters.era ? 1 : 0);
+
+  const filteredEras = useMemo(() => {
+    const eras = filterOptions?.eras || [];
+    const keyword = eraKeyword.trim().toLowerCase();
+    if (!keyword) {
+      return eras;
+    }
+
+    return eras.filter((era) => era.toLowerCase().includes(keyword));
+  }, [eraKeyword, filterOptions?.eras]);
 
   const clearAllFilters = () => {
     setLocalKeyword("");
@@ -214,25 +244,38 @@ export default function SearchBar({
             </div>
           </div>
 
-          {/* Era filter - use select for many options */}
+          {/* Era filter */}
           <div>
             <label className="text-xs text-muted-foreground mb-1.5 block">时代</label>
-            <div className="relative">
-              <select
-                value={filters.era}
-                onChange={(e) =>
-                  onFiltersChange({ ...filters, era: e.target.value })
-                }
-                className="w-full h-9 px-3 pr-8 text-sm border border-border rounded-md bg-white appearance-none focus:outline-none focus:ring-2 focus:ring-ring/30"
-              >
-                <option value="">全部时代</option>
-                {(filterOptions?.eras || []).map((e) => (
-                  <option key={e} value={e}>
-                    {e}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <div className="rounded-md border border-border overflow-hidden">
+              <Command shouldFilter={false}>
+                <CommandInput
+                  value={eraKeyword}
+                  onValueChange={setEraKeyword}
+                  placeholder="搜索时代..."
+                />
+                <CommandList className="max-h-48">
+                  <CommandEmpty>未找到匹配时代</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem onSelect={() => onFiltersChange({ ...filters, era: "" })}>
+                      <Check className={cn("h-4 w-4", !filters.era ? "opacity-100" : "opacity-0")} />
+                      <span>全部时代</span>
+                    </CommandItem>
+                    {filteredEras.map((era) => (
+                      <CommandItem
+                        key={era}
+                        value={era}
+                        onSelect={() => onFiltersChange({ ...filters, era })}
+                      >
+                        <Check
+                          className={cn("h-4 w-4", filters.era === era ? "opacity-100" : "opacity-0")}
+                        />
+                        <span className="truncate">{era}</span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
             </div>
           </div>
         </div>

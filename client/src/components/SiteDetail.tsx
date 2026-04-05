@@ -1,7 +1,8 @@
-import { ArrowLeft, MapPin, Clock, Landmark, Tag, Navigation } from "lucide-react";
+import { ArrowLeft, MapPin, Clock, Landmark, Tag, Navigation, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { buildFallbackIntroduction } from "@/lib/site-data";
-import type { SiteDetail as SiteDetailType } from "@/types";
+import introMapJson from "@/generated/site-introductions.json";
+import { buildBaiduSearchUrl, getSiteIntroduction } from "@/lib/site-data";
+import type { SiteDetail as SiteDetailType, SiteIntroductionMap } from "@/types";
 
 interface SiteDetailProps {
   site: SiteDetailType | null;
@@ -40,7 +41,9 @@ export default function SiteDetail({ site, onBack, onLocateOnMap }: SiteDetailPr
   }
 
   const navUrl = getNavigationUrl(site.name, site.latitude, site.longitude);
-  const intro = buildFallbackIntroduction(site);
+  const introductions = introMapJson as SiteIntroductionMap;
+  const intro = getSiteIntroduction(site, introductions);
+  const baiduSearchUrl = buildBaiduSearchUrl(site);
 
   return (
     <div className="flex flex-col h-full">
@@ -135,8 +138,22 @@ export default function SiteDetail({ site, onBack, onLocateOnMap }: SiteDetailPr
 
         {/* Introduction */}
         <div className="border-t border-border/40 pt-4">
-          <h3 className="text-sm font-semibold text-foreground mb-2">简介</h3>
-          <p className="text-sm text-foreground/80 leading-relaxed">{intro}</p>
+          <h3 className="mb-2 text-sm font-semibold text-foreground">简介</h3>
+          {intro ? (
+            <p className="text-sm text-foreground/80 leading-relaxed">{intro}</p>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                当前版本暂未收录该文保单位的站内简介，可通过百度继续检索相关资料。
+              </p>
+              <Button variant="outline" size="sm" className="gap-1.5" asChild>
+                <a href={baiduSearchUrl} target="_blank" rel="noopener noreferrer">
+                  <Search className="h-3.5 w-3.5" />
+                  百度搜索
+                </a>
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,18 +1,9 @@
-import type { FilterOptions, HeritageSite } from "@/types";
+import { BATCH_ORDER, DEFAULT_BATCHES, PREGENERATED_INTRO_BATCHES } from "@shared/const";
 import { normalizeHeritageSites, type RawHeritageSite } from "@shared/heritage-sites";
+import { buildSiteIntroductionKey } from "@shared/site-introductions";
+import type { FilterOptions, HeritageSite, SiteIntroductionMap } from "@/types";
 
-export const BATCH_ORDER = [
-  "第一批",
-  "第二批",
-  "第三批",
-  "第四批",
-  "第五批",
-  "第六批",
-  "第七批",
-  "第八批",
-] as const;
-
-export const DEFAULT_BATCHES = BATCH_ORDER.slice(0, 3);
+export { BATCH_ORDER, DEFAULT_BATCHES, PREGENERATED_INTRO_BATCHES };
 
 export async function fetchJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
@@ -39,20 +30,17 @@ export function haversineKm(lat1: number, lng1: number, lat2: number, lng2: numb
   return r * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-export function buildFallbackIntroduction(site: HeritageSite) {
-  const parts = [
-    `${site.name}是${site.batch || "已公布"}全国重点文物保护单位，`,
-    site.type ? `属于${site.type}类别，` : "",
-    site.address ? `位于${site.address}，` : "",
-    site.era ? `年代可追溯至${site.era}。` : "具有明确的历史文化价值。",
-  ];
+export function isPreGeneratedIntroSite(site: HeritageSite) {
+  return site.batch !== null && PREGENERATED_INTRO_BATCHES.some((batch) => batch === site.batch);
+}
 
-  const valueParts = [
-    site.type ? `作为${site.type}类文保单位，` : "作为重要文物保护单位，",
-    "它在区域历史、建筑工艺和文化传承方面具有较高研究与参观价值。",
-  ];
+export function getSiteIntroduction(site: HeritageSite, introductions: SiteIntroductionMap) {
+  return introductions[buildSiteIntroductionKey(site)] ?? null;
+}
 
-  return `${parts.join("")}${valueParts.join("")}`;
+export function buildBaiduSearchUrl(site: HeritageSite) {
+  const query = [site.name, site.address, site.era].filter(Boolean).join(" ");
+  return `https://www.baidu.com/s?wd=${encodeURIComponent(query)}`;
 }
 
 export function buildFilterOptionsFromSites(sites: HeritageSite[]): FilterOptions {

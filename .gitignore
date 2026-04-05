@@ -3,6 +3,7 @@ dist/
 .env
 .env.local
 .manus-logs/
+.cache/
 *.log
 .DS_Store
 client/public/__manus__/

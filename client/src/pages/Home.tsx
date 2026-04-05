@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useDeferredValue, startTransition } from "react";
 import { Map, List, Locate, Loader2, Landmark } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -58,33 +58,43 @@ export default function Home() {
   });
 
   const loadError = sitesError;
+  const deferredKeyword = useDeferredValue(filters.keyword);
+
+  const preparedSites = useMemo(() => {
+    if (!allSites) return [];
+
+    return allSites.map((site) => ({
+      site,
+      batch: site.batch,
+      type: site.type,
+      eraText: site.era?.toLowerCase() ?? "",
+      searchText: [site.name, site.address ?? "", site.type ?? "", site.era ?? ""]
+        .join(" ")
+        .toLowerCase(),
+    }));
+  }, [allSites]);
 
   // Filter map data based on search/filter criteria
   const filteredMapData = useMemo(() => {
-    if (!allSites) return [];
-    let filtered = allSites;
-    if (filters.keyword) {
-      const kw = filters.keyword.toLowerCase();
-      filtered = filtered.filter(
-        (s) =>
-          s.name.toLowerCase().includes(kw) ||
-          s.address?.toLowerCase().includes(kw) ||
-          s.type?.toLowerCase().includes(kw)
-      );
+    let filtered = preparedSites;
+    if (deferredKeyword) {
+      const kw = deferredKeyword.trim().toLowerCase();
+      filtered = filtered.filter((entry) => entry.searchText.includes(kw));
     }
     if (filters.batches.length > 0) {
-      filtered = filtered.filter((s) => s.batch !== null && filters.batches.includes(s.batch));
+      filtered = filtered.filter((entry) => entry.batch !== null && filters.batches.includes(entry.batch));
     } else {
       filtered = [];
     }
     if (filters.types.length > 0) {
-      filtered = filtered.filter((s) => filters.types.includes(s.type ?? ""));
+      filtered = filtered.filter((entry) => filters.types.includes(entry.type ?? ""));
     }
     if (filters.era) {
-      filtered = filtered.filter((s) => s.era?.includes(filters.era) ?? false);
+      const eraQuery = filters.era.toLowerCase();
+      filtered = filtered.filter((entry) => entry.eraText.includes(eraQuery));
     }
-    return filtered;
-  }, [allSites, filters]);
+    return filtered.map((entry) => entry.site);
+  }, [deferredKeyword, filters, preparedSites]);
 
   const sortedList = useMemo(() => {
     const withDistance = filteredMapData.map((site) => ({
@@ -150,7 +160,9 @@ export default function Home() {
   }, []);
 
   const handleFiltersChange = useCallback((newFilters: SearchFilters) => {
-    setFilters(newFilters);
+    startTransition(() => {
+      setFilters(newFilters);
+    });
     setListOffset(0);
   }, []);
 
@@ -166,7 +178,7 @@ export default function Home() {
   }, []);
 
   const userLocation = useMemo(() => {
-    if (location.granted && location.latitude && location.longitude) {
+    if (location.granted && location.latitude !== null && location.longitude !== null) {
       return { lat: location.latitude, lng: location.longitude };
     }
     return null;
