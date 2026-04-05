@@ -1,0 +1,12 @@
+{
+  "outputDirectory": "dist/public",
+  "builds": [
+    { "src": "server/vercel.ts", "use": "@vercel/node" }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/server/vercel.ts" },
+    { "src": "/_AMapService/(.*)", "dest": "/server/vercel.ts" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
+}
