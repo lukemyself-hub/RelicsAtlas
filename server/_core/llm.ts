@@ -209,13 +209,33 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
-const resolveApiUrl = () =>
-  "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+type ProviderConfig = {
+  apiKey: string;
+  apiUrl: string;
+  model: string;
+  label: "ark" | "gemini";
+};
 
-const assertApiKey = () => {
-  if (!ENV.geminiApiKey) {
-    throw new Error("GEMINI_API_KEY is not configured");
+const resolveProvider = (): ProviderConfig => {
+  if (ENV.arkApiKey && ENV.arkModel) {
+    return {
+      apiKey: ENV.arkApiKey,
+      apiUrl: `${ENV.arkBaseUrl.replace(/\/$/, "")}/chat/completions`,
+      model: ENV.arkModel,
+      label: "ark",
+    };
   }
+
+  if (ENV.geminiApiKey) {
+    return {
+      apiKey: ENV.geminiApiKey,
+      apiUrl: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+      model: "gemini-2.5-flash",
+      label: "gemini",
+    };
+  }
+
+  throw new Error("No LLM provider configured. Set ARK_API_KEY + ARK_MODEL or GEMINI_API_KEY.");
 };
 
 const normalizeResponseFormat = ({
@@ -264,7 +284,7 @@ const normalizeResponseFormat = ({
 };
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
-  assertApiKey();
+  const provider = resolveProvider();
 
   const {
     messages,
@@ -278,7 +298,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   } = params;
 
   const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
+    model: provider.model,
     messages: messages.map(normalizeMessage),
   };
 
@@ -294,7 +314,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768;
+  payload.max_tokens = 2048;
 
   const normalizedResponseFormat = normalizeResponseFormat({
     responseFormat,
@@ -307,11 +327,11 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const response = await fetch(resolveApiUrl(), {
+  const response = await fetch(provider.apiUrl, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${ENV.geminiApiKey}`,
+      authorization: `Bearer ${provider.apiKey}`,
     },
     body: JSON.stringify(payload),
   });
@@ -320,7 +340,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     const errorText = await response.text();
     const retryAfter = response.headers.get("retry-after");
     throw new Error(
-      `LLM invoke failed: ${response.status} ${response.statusText}${retryAfter ? ` (retry-after: ${retryAfter}s)` : ""} – ${errorText}`
+      `LLM invoke failed [${provider.label}]: ${response.status} ${response.statusText}${retryAfter ? ` (retry-after: ${retryAfter}s)` : ""} – ${errorText}`
     );
   }
 
