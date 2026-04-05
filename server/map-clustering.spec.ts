@@ -6,6 +6,7 @@ import {
   getDynamicClusterRadius,
   matchTransitionSources,
   projectVisibleSites,
+  resolveClusterExpansionZoom,
 } from "../shared/map-clustering";
 
 describe("map clustering helpers", () => {
@@ -93,5 +94,12 @@ describe("map clustering helpers", () => {
 
     expect(matched[0].sourceKey).toBe(prevNodes[0].key);
     expect(matched[1].sourceKey).toBe(prevNodes[0].key);
+  });
+
+  it("keeps expanding cluster zoom until the map reaches its real max zoom", () => {
+    expect(resolveClusterExpansionZoom(12, 12, 20)).toBe(14);
+    expect(resolveClusterExpansionZoom(12, 15, 20)).toBe(15);
+    expect(resolveClusterExpansionZoom(19, 19, 20)).toBe(20);
+    expect(resolveClusterExpansionZoom(20, 20, 20)).toBe(20);
   });
 });

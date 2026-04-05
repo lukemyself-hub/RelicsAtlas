@@ -178,6 +178,23 @@ export function getClusterFocusBounds<T extends { latitude: number; longitude: n
   };
 }
 
+export function resolveClusterExpansionZoom(
+  currentZoom: number,
+  suggestedZoom: number | null | undefined,
+  maxZoom: number
+) {
+  if (currentZoom >= maxZoom) {
+    return maxZoom;
+  }
+
+  const minimumNextZoom = Math.min(currentZoom + 2, maxZoom);
+  if (suggestedZoom == null || suggestedZoom <= currentZoom) {
+    return minimumNextZoom;
+  }
+
+  return Math.min(Math.max(suggestedZoom, minimumNextZoom), maxZoom);
+}
+
 function findTransitionSource(prevNodes: RenderNode[], nextNode: RenderNode) {
   let parentMatch: RenderNode | null = null;
 

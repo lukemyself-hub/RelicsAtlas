@@ -21,6 +21,7 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<ViewMode>("map");
   const [selectedSiteId, setSelectedSiteId] = useState<number | null>(null);
   const [highlightSiteId, setHighlightSiteId] = useState<number | null>(null);
+  const [locateRequest, setLocateRequest] = useState<number | null>(null);
   const [mapViewport, setMapViewport] = useState<MapViewport | null>(null);
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [hasPrompted, setHasPrompted] = useState(false);
@@ -237,9 +238,11 @@ export default function Home() {
                 onSiteClick={handleSiteClick}
                 userLocation={userLocation}
                 highlightSiteId={highlightSiteId}
+                locateRequest={locateRequest}
                 initialViewport={mapViewport}
                 onViewportChange={handleViewportChange}
                 onHighlightHandled={handleHighlightHandled}
+                onLocateHandled={() => setLocateRequest(null)}
               />
             )}
 
@@ -265,6 +268,7 @@ export default function Home() {
                 onClick={() => {
                   if (userLocation) {
                     setHighlightSiteId(null);
+                    setLocateRequest(Date.now());
                   }
                 }}
                 className="absolute bottom-20 right-3 z-10 w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-accent transition-colors"
