@@ -6,6 +6,12 @@ type ShareMetadataOptions = {
   shareAssetVersion?: string;
 };
 
+type StaticShareMetadataOptions = {
+  publicSiteUrl?: string;
+  shareAssetVersion?: string;
+  fallbackSiteUrl?: string;
+};
+
 export type ShareMetadata = {
   canonicalUrl: string;
   ogImageUrl: string;
@@ -14,6 +20,7 @@ export type ShareMetadata = {
 
 const WECHAT_SHARE_IMAGE_PATH = "/wechat-share.png";
 const TWITTER_SHARE_IMAGE_PATH = "/og-cover.png";
+export const DEFAULT_PUBLIC_SITE_URL = "https://www.wenbaoditu.top/";
 
 export function getRequestOrigin(req: Request) {
   const forwardedProto = req.header("x-forwarded-proto")?.split(",")[0]?.trim();
@@ -47,13 +54,12 @@ export function appendVersionParam(url: string, version?: string) {
   return resolvedUrl.toString();
 }
 
-export function buildShareMetadata({
-  req,
+export function buildStaticShareMetadata({
   publicSiteUrl,
   shareAssetVersion,
-}: ShareMetadataOptions): ShareMetadata {
-  const fallbackOrigin = getRequestOrigin(req);
-  const siteUrl = normalizeSiteUrl(publicSiteUrl?.trim() || fallbackOrigin);
+  fallbackSiteUrl = DEFAULT_PUBLIC_SITE_URL,
+}: StaticShareMetadataOptions): ShareMetadata {
+  const siteUrl = normalizeSiteUrl(publicSiteUrl?.trim() || fallbackSiteUrl);
 
   return {
     canonicalUrl: siteUrl,
@@ -66,4 +72,17 @@ export function buildShareMetadata({
       shareAssetVersion,
     ),
   };
+}
+
+export function buildShareMetadata({
+  req,
+  publicSiteUrl,
+  shareAssetVersion,
+}: ShareMetadataOptions): ShareMetadata {
+  const fallbackOrigin = getRequestOrigin(req);
+  return buildStaticShareMetadata({
+    publicSiteUrl,
+    shareAssetVersion,
+    fallbackSiteUrl: fallbackOrigin,
+  });
 }

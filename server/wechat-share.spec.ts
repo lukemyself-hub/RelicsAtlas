@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { appRouter } from "./routers";
-import type { TrpcContext } from "./_core/context";
-import { buildWeChatSignature } from "./_core/wechat-share";
+import {
+  buildWeChatSignature,
+  getWeChatShareConfig,
+} from "./_core/wechat-share";
 
 const originalEnv = {
   publicSiteUrl: process.env.PUBLIC_SITE_URL,
+  vitePublicSiteUrl: process.env.VITE_PUBLIC_SITE_URL,
   wechatAppId: process.env.WECHAT_APP_ID,
   wechatAppSecret: process.env.WECHAT_APP_SECRET,
 };
@@ -18,19 +20,9 @@ function restoreEnvVariable(key: string, value: string | undefined) {
   process.env[key] = value;
 }
 
-function createContext(): TrpcContext {
-  return {
-    user: null,
-    req: {
-      protocol: "https",
-      headers: {},
-    } as TrpcContext["req"],
-    res: {} as TrpcContext["res"],
-  };
-}
-
 afterEach(() => {
   restoreEnvVariable("PUBLIC_SITE_URL", originalEnv.publicSiteUrl);
+  restoreEnvVariable("VITE_PUBLIC_SITE_URL", originalEnv.vitePublicSiteUrl);
   restoreEnvVariable("WECHAT_APP_ID", originalEnv.wechatAppId);
   restoreEnvVariable("WECHAT_APP_SECRET", originalEnv.wechatAppSecret);
 });
@@ -49,13 +41,11 @@ describe("wechat share helpers", () => {
 
   it("returns disabled share config when WeChat credentials are not configured", async () => {
     delete process.env.PUBLIC_SITE_URL;
+    delete process.env.VITE_PUBLIC_SITE_URL;
     delete process.env.WECHAT_APP_ID;
     delete process.env.WECHAT_APP_SECRET;
 
-    const caller = appRouter.createCaller(createContext());
-    const result = await caller.wechat.shareConfig({
-      url: "https://atlas.example.com/",
-    });
+    const result = await getWeChatShareConfig("https://atlas.example.com/");
 
     expect(result).toEqual({ enabled: false });
   });

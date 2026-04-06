@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { getWeChatSharePayload } from "@/lib/share";
-import { getTrpcClient } from "@/lib/trpc";
 
 type WeChatShareConfig = {
   debug?: boolean;
@@ -38,6 +37,34 @@ declare global {
 
 let sdkPromise: Promise<WeChatSdk | null> | null = null;
 
+async function fetchWeChatShareConfig(url: string) {
+  const response = await fetch(
+    `/api/wechat/share-config?url=${encodeURIComponent(url)}`,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+    },
+  );
+
+  if (!response.ok) {
+    return { enabled: false } as const;
+  }
+
+  return (await response.json()) as
+    | {
+        enabled: true;
+        appId: string;
+        timestamp: number;
+        nonceStr: string;
+        signature: string;
+      }
+    | {
+        enabled: false;
+      };
+}
+
 function isWeChatBrowser() {
   return /MicroMessenger/i.test(window.navigator.userAgent);
 }
@@ -72,9 +99,7 @@ export function useWeChatShare() {
     const setupWeChatShare = async () => {
       try {
         const pageUrl = window.location.href.split("#")[0];
-        const shareConfig = await getTrpcClient().wechat.shareConfig.query({
-          url: pageUrl,
-        });
+        const shareConfig = await fetchWeChatShareConfig(pageUrl);
 
         if (!shareConfig.enabled || cancelled) {
           return;

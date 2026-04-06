@@ -1,9 +1,12 @@
 import express, { type Express, type Request } from "express";
 import fs from "fs";
 import { type Server } from "http";
-import { nanoid } from "nanoid";
 import path from "path";
-import { createServer as createViteServer } from "vite";
+import {
+  createServer as createViteServer,
+  type InlineConfig,
+  type UserConfig,
+} from "vite";
 import viteConfig from "../../vite.config";
 import { ENV } from "./env";
 import { buildShareMetadata } from "./share-metadata";
@@ -11,6 +14,24 @@ import { buildShareMetadata } from "./share-metadata";
 const CANONICAL_URL_PLACEHOLDER = "__CANONICAL_URL__";
 const OG_IMAGE_URL_PLACEHOLDER = "__OG_IMAGE_URL__";
 const TWITTER_IMAGE_URL_PLACEHOLDER = "__TWITTER_IMAGE_URL__";
+
+function shouldServeHtml(req: Request) {
+  if (req.method !== "GET") {
+    return false;
+  }
+
+  const accept = req.headers.accept ?? "";
+  if (!accept.includes("text/html")) {
+    return false;
+  }
+
+  const pathname = req.path || req.originalUrl || "";
+  if (pathname.startsWith("/@vite/")) {
+    return false;
+  }
+
+  return path.extname(pathname) === "";
+}
 
 function injectHeadMetadata(template: string, req: Request) {
   const shareMetadata = buildShareMetadata({
@@ -25,22 +46,43 @@ function injectHeadMetadata(template: string, req: Request) {
     .replaceAll(TWITTER_IMAGE_URL_PLACEHOLDER, shareMetadata.twitterImageUrl);
 }
 
+async function resolveInlineViteConfig(): Promise<UserConfig> {
+  if (typeof viteConfig === "function") {
+    return await viteConfig({
+      command: "serve",
+      mode: "development",
+      isSsrBuild: false,
+      isPreview: false,
+    });
+  }
+
+  return viteConfig;
+}
+
 export async function setupVite(app: Express, server: Server) {
+  const resolvedViteConfig = await resolveInlineViteConfig();
   const serverOptions = {
     middlewareMode: true,
     hmr: { server },
     allowedHosts: true as const,
   };
 
-  const vite = await createViteServer({
-    ...viteConfig,
+  const viteServerConfig: InlineConfig = {
+    ...resolvedViteConfig,
     configFile: false,
     server: serverOptions,
     appType: "custom",
-  });
+  };
+
+  const vite = await createViteServer(viteServerConfig);
 
   app.use(vite.middlewares);
   app.use("*", async (req, res, next) => {
+    if (!shouldServeHtml(req)) {
+      next();
+      return;
+    }
+
     const url = req.originalUrl;
 
     try {
@@ -54,10 +96,6 @@ export async function setupVite(app: Express, server: Server) {
       // always reload the index.html file from disk incase it changes
       let template = await fs.promises.readFile(clientTemplate, "utf-8");
       template = injectHeadMetadata(template, req);
-      template = template.replace(
-        `src="/src/main.tsx"`,
-        `src="/src/main.tsx?v=${nanoid()}"`,
-      );
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {

@@ -3,10 +3,18 @@ export const ENV = {
     return process.env.NODE_ENV === "production";
   },
   get publicSiteUrl() {
-    return process.env.PUBLIC_SITE_URL?.trim() ?? "";
+    return (
+      process.env.VITE_PUBLIC_SITE_URL?.trim() ??
+      process.env.PUBLIC_SITE_URL?.trim() ??
+      ""
+    );
   },
   get shareAssetVersion() {
-    return process.env.SHARE_ASSET_VERSION?.trim() ?? "";
+    return (
+      process.env.VITE_SHARE_ASSET_VERSION?.trim() ??
+      process.env.SHARE_ASSET_VERSION?.trim() ??
+      ""
+    );
   },
   get amapSecurityKey() {
     return process.env.AMAP_SECURITY_KEY ?? "";

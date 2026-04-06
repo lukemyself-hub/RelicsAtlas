@@ -3,6 +3,7 @@ import type { Request } from "express";
 import {
   appendVersionParam,
   buildShareMetadata,
+  buildStaticShareMetadata,
   normalizeSiteUrl,
 } from "./_core/share-metadata";
 
@@ -52,6 +53,18 @@ describe("share metadata helpers", () => {
       canonicalUrl: "https://atlas.example.com/",
       ogImageUrl: "https://atlas.example.com/wechat-share.png?v=42",
       twitterImageUrl: "https://atlas.example.com/og-cover.png?v=42",
+    });
+  });
+
+  it("builds static share metadata with a production fallback URL", () => {
+    const metadata = buildStaticShareMetadata({
+      shareAssetVersion: "20260406",
+    });
+
+    expect(metadata).toEqual({
+      canonicalUrl: "https://www.wenbaoditu.top/",
+      ogImageUrl: "https://www.wenbaoditu.top/wechat-share.png?v=20260406",
+      twitterImageUrl: "https://www.wenbaoditu.top/og-cover.png?v=20260406",
     });
   });
 });
