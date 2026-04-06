@@ -65,6 +65,8 @@ const CLUSTER_ZOOM_STEP = 2;
 const MAP_MIN_ZOOM = 3;
 const POI_VISIBLE_MAX_ZOOM = 18;
 const SITE_FOCUS_ZOOM = 15;
+const INFO_WINDOW_SAFE_MARGIN_MOBILE = [148, 20, 24, 20] as const;
+const INFO_WINDOW_SAFE_MARGIN_DESKTOP = [132, 24, 28, 24] as const;
 const DEFAULT_VIEWPORT = {
   center: { lng: 104.2, lat: 35.86 },
   zoom: 5,
@@ -154,6 +156,11 @@ export default function MapView({
       const infoWindow = new AMap.InfoWindow({
         content: createSiteInfoContent(site, () => onSiteClick(site.id)),
         isCustom: true,
+        autoMove: true,
+        avoid:
+          window.innerWidth >= 768
+            ? [...INFO_WINDOW_SAFE_MARGIN_DESKTOP]
+            : [...INFO_WINDOW_SAFE_MARGIN_MOBILE],
         offset: new AMap.Pixel(0, -58),
       });
 
