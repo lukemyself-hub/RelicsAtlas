@@ -5,7 +5,7 @@ import {
   useState,
   startTransition,
 } from "react";
-import { Landmark, List, Loader2, Locate, Map } from "lucide-react";
+import { List, Loader2, Locate, Map } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -403,8 +403,12 @@ export default function Home() {
       <header className="relative z-20 shrink-0 border-b border-black/10 bg-[linear-gradient(180deg,#0b765e_0%,#045744_100%)] text-white shadow-[0_20px_40px_rgba(4,39,31,0.18)]">
         <div className="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 pb-4 pt-[calc(env(safe-area-inset-top)+0.95rem)] md:px-6 md:pb-5 md:pt-6">
           <div className="flex shrink-0 items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-white/16 bg-white/10 shadow-[0_12px_24px_rgba(0,0,0,0.12)] backdrop-blur">
-              <Landmark className="h-6 w-6 text-white" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-white/16 bg-white/10 p-1 shadow-[0_12px_24px_rgba(0,0,0,0.12)] backdrop-blur">
+              <img
+                src="/favicon.svg"
+                alt="全国文物保护单位地图"
+                className="h-full w-full rounded-[14px]"
+              />
             </div>
             <div className="hidden min-w-0 sm:block">
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/68">
@@ -502,7 +506,7 @@ export default function Home() {
               />
             )}
 
-            <div className="pointer-events-none absolute left-4 top-4 z-10 md:left-6 md:top-6">
+            <div className="pointer-events-none absolute left-4 top-4 z-[2] md:left-6 md:top-6">
               <div className="editorial-card rounded-[24px] px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                   地图模式

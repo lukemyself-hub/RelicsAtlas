@@ -1,0 +1,35 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" fill="#F5F1EA"/>
+  <rect width="1200" height="630" fill="url(#paint0_radial_1_1)"/>
+  <rect x="64" y="64" width="1072" height="502" rx="40" fill="url(#paint1_linear_1_1)"/>
+  <rect x="64" y="64" width="1072" height="502" rx="40" fill="url(#paint2_linear_1_1)" fill-opacity="0.2"/>
+  <circle cx="1044" cy="148" r="120" fill="white" fill-opacity="0.08"/>
+  <circle cx="1094" cy="508" r="92" fill="#E9DDC9" fill-opacity="0.25"/>
+  <circle cx="140" cy="542" r="110" fill="#E3D5BE" fill-opacity="0.18"/>
+  <rect x="120" y="122" width="124" height="124" rx="34" fill="white" fill-opacity="0.1"/>
+  <rect x="120" y="122" width="124" height="124" rx="34" stroke="white" stroke-opacity="0.12" stroke-width="2"/>
+  <path d="M153 213H211" stroke="white" stroke-width="9" stroke-linecap="round"/>
+  <path d="M163 159H201" stroke="white" stroke-width="9" stroke-linecap="round"/>
+  <path d="M167 159V213" stroke="white" stroke-width="9" stroke-linecap="round"/>
+  <path d="M197 159V213" stroke="white" stroke-width="9" stroke-linecap="round"/>
+  <path d="M182 127L210 141V159H154V141L182 127Z" stroke="white" stroke-width="9" stroke-linejoin="round"/>
+  <text x="120" y="330" fill="white" font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="68" font-weight="700">全国文物保护单位地图</text>
+  <text x="120" y="396" fill="rgba(255,255,255,0.82)" font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="30" font-weight="500">在一张地图上浏览全国重点文物保护单位</text>
+  <text x="120" y="442" fill="rgba(255,255,255,0.82)" font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="30" font-weight="500">支持关键词检索、分类筛选、地图定位与详情查看</text>
+  <rect x="120" y="484" width="194" height="52" rx="26" fill="white" fill-opacity="0.14"/>
+  <text x="157" y="517" fill="white" font-family="'Inter', 'Noto Sans SC', sans-serif" font-size="24" font-weight="600">Relics Atlas</text>
+  <defs>
+    <radialGradient id="paint0_radial_1_1" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(214 52) rotate(43.4987) scale(1121.09 1358.39)">
+      <stop stop-color="#FFF9EF"/>
+      <stop offset="1" stop-color="#F1E8DA"/>
+    </radialGradient>
+    <linearGradient id="paint1_linear_1_1" x1="600" y1="64" x2="600" y2="566" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B765E"/>
+      <stop offset="1" stop-color="#045744"/>
+    </linearGradient>
+    <linearGradient id="paint2_linear_1_1" x1="95" y1="89" x2="1136" y2="519" gradientUnits="userSpaceOnUse">
+      <stop stop-color="white" stop-opacity="0.38"/>
+      <stop offset="1" stop-color="#E7D9BF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+</svg>
