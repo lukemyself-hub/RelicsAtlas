@@ -35,6 +35,33 @@ export function wgs84ToGcj02(lng: number, lat: number): Coordinate {
   };
 }
 
+export function gcj02ToWgs84(lng: number, lat: number): Coordinate {
+  if (!isInMainlandChina(lng, lat)) {
+    return { lng, lat };
+  }
+
+  let guessLng = lng;
+  let guessLat = lat;
+
+  for (let index = 0; index < 5; index += 1) {
+    const converted = wgs84ToGcj02(guessLng, guessLat);
+    const deltaLng = converted.lng - lng;
+    const deltaLat = converted.lat - lat;
+
+    guessLng -= deltaLng;
+    guessLat -= deltaLat;
+
+    if (Math.max(Math.abs(deltaLng), Math.abs(deltaLat)) < 1e-7) {
+      break;
+    }
+  }
+
+  return {
+    lng: guessLng,
+    lat: guessLat,
+  };
+}
+
 function transformLat(lng: number, lat: number) {
   let result =
     -100.0 +

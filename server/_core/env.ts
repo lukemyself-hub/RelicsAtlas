@@ -5,6 +5,9 @@ export const ENV = {
   get amapSecurityKey() {
     return process.env.AMAP_SECURITY_KEY ?? "";
   },
+  get amapWebServiceKey() {
+    return process.env.AMAP_WEB_SERVICE_KEY ?? "";
+  },
   get arkApiKey() {
     return process.env.ARK_API_KEY ?? "";
   },
