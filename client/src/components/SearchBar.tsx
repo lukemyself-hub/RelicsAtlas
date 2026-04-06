@@ -46,6 +46,7 @@ export default function SearchBar({
   const [eraKeyword, setEraKeyword] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
   const searchFieldRef = useRef<HTMLDivElement>(null);
+  const mobileFilterScrollRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
   const composition = useComposition<HTMLInputElement>({
     onKeyDown: (event) => {
@@ -77,6 +78,19 @@ export default function SearchBar({
       setEraKeyword("");
     }
   }, [showFilters]);
+
+  useEffect(() => {
+    if (!isMobile || !showFilters) return;
+
+    const resetScroll = () => {
+      mobileFilterScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+    };
+
+    resetScroll();
+    const frame = window.requestAnimationFrame(resetScroll);
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [isMobile, showFilters]);
 
   const hasCustomBatchSelection =
     filters.batches.length !== DEFAULT_BATCHES.length ||
@@ -398,8 +412,8 @@ export default function SearchBar({
 
       {isMobile && (
         <Drawer open={showFilters} onOpenChange={setShowFilters}>
-          <DrawerContent className="rounded-t-[32px] border-border bg-background">
-            <DrawerHeader className="px-5 pb-5 pt-5 text-left">
+          <DrawerContent className="rounded-t-[32px] border-border bg-background pt-[calc(env(safe-area-inset-top)+0.25rem)]">
+            <DrawerHeader className="px-5 pb-4 pt-6 text-left">
               <DrawerTitle className="font-display text-2xl font-semibold text-foreground">
                 筛选文保单位
               </DrawerTitle>
@@ -407,7 +421,10 @@ export default function SearchBar({
                 让结果更贴近你关心的批次、类别与时代。
               </DrawerDescription>
             </DrawerHeader>
-            <div className="max-h-[70vh] overflow-y-auto px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
+            <div
+              ref={mobileFilterScrollRef}
+              className="max-h-[70vh] overflow-y-auto px-5 pt-2 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]"
+            >
               <div className="mb-5 flex items-center justify-between">
                 <div className="text-sm text-muted-foreground">
                   当前共启用 {activeFilterCount} 项筛选规则
