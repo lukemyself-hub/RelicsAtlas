@@ -1,0 +1,24 @@
+<svg width="640" height="640" viewBox="0 0 640 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="640" height="640" rx="160" fill="url(#paint0_linear_1_1)"/>
+  <rect x="44" y="44" width="552" height="552" rx="132" fill="white" fill-opacity="0.08" stroke="white" stroke-opacity="0.12" stroke-width="4"/>
+  <circle cx="504" cy="152" r="92" fill="white" fill-opacity="0.08"/>
+  <circle cx="152" cy="526" r="86" fill="#E8D9BF" fill-opacity="0.14"/>
+  <rect x="120" y="106" width="154" height="154" rx="44" fill="white" fill-opacity="0.12"/>
+  <rect x="120" y="106" width="154" height="154" rx="44" stroke="white" stroke-opacity="0.12" stroke-width="3"/>
+  <path d="M161 221H233" stroke="white" stroke-width="12" stroke-linecap="round"/>
+  <path d="M173 154H221" stroke="white" stroke-width="12" stroke-linecap="round"/>
+  <path d="M177 154V221" stroke="white" stroke-width="12" stroke-linecap="round"/>
+  <path d="M217 154V221" stroke="white" stroke-width="12" stroke-linecap="round"/>
+  <path d="M197 116L231 133V154H163V133L197 116Z" stroke="white" stroke-width="12" stroke-linejoin="round"/>
+  <text x="120" y="346" fill="white" font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="88" font-weight="700">文保地图</text>
+  <text x="120" y="420" fill="rgba(255,255,255,0.82)" font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="34" font-weight="500">全国重点文物保护单位</text>
+  <text x="120" y="470" fill="rgba(255,255,255,0.82)" font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="34" font-weight="500">地图浏览与周边发现</text>
+  <rect x="120" y="512" width="214" height="58" rx="29" fill="white" fill-opacity="0.14"/>
+  <text x="157" y="550" fill="white" font-family="'Inter', 'Noto Sans SC', sans-serif" font-size="28" font-weight="600">Relics Atlas</text>
+  <defs>
+    <linearGradient id="paint0_linear_1_1" x1="320" y1="0" x2="320" y2="640" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B765E"/>
+      <stop offset="1" stop-color="#045744"/>
+    </linearGradient>
+  </defs>
+</svg>

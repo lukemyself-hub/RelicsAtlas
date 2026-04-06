@@ -5,28 +5,24 @@ import { nanoid } from "nanoid";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
+import { ENV } from "./env";
+import { buildShareMetadata } from "./share-metadata";
 
-const APP_ORIGIN_PLACEHOLDER = "__APP_ORIGIN__";
 const CANONICAL_URL_PLACEHOLDER = "__CANONICAL_URL__";
-
-function getRequestOrigin(req: Request) {
-  const forwardedProto = req.header("x-forwarded-proto")?.split(",")[0]?.trim();
-  const forwardedHost = req.header("x-forwarded-host")?.split(",")[0]?.trim();
-  const protocol = forwardedProto || req.protocol;
-  const host = forwardedHost || req.get("host");
-
-  return host ? `${protocol}://${host}` : "";
-}
+const OG_IMAGE_URL_PLACEHOLDER = "__OG_IMAGE_URL__";
+const TWITTER_IMAGE_URL_PLACEHOLDER = "__TWITTER_IMAGE_URL__";
 
 function injectHeadMetadata(template: string, req: Request) {
-  const origin = getRequestOrigin(req);
-  const canonicalUrl = origin
-    ? new URL(req.path || "/", origin).toString()
-    : req.path;
+  const shareMetadata = buildShareMetadata({
+    req,
+    publicSiteUrl: ENV.publicSiteUrl,
+    shareAssetVersion: ENV.shareAssetVersion,
+  });
 
   return template
-    .replaceAll(APP_ORIGIN_PLACEHOLDER, origin)
-    .replaceAll(CANONICAL_URL_PLACEHOLDER, canonicalUrl);
+    .replaceAll(CANONICAL_URL_PLACEHOLDER, shareMetadata.canonicalUrl)
+    .replaceAll(OG_IMAGE_URL_PLACEHOLDER, shareMetadata.ogImageUrl)
+    .replaceAll(TWITTER_IMAGE_URL_PLACEHOLDER, shareMetadata.twitterImageUrl);
 }
 
 export async function setupVite(app: Express, server: Server) {

@@ -2,6 +2,7 @@ import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { COOKIE_NAME } from "../shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
+import { getWeChatShareConfig } from "./_core/wechat-share";
 import {
   getAllSitesForMap,
   searchSites,
@@ -38,7 +39,7 @@ export const appRouter = router({
           offset: z.number().min(0).optional(),
           userLat: z.number().optional(),
           userLng: z.number().optional(),
-        })
+        }),
       )
       .query(async ({ input }) => {
         return await searchSites(input);
@@ -58,6 +59,17 @@ export const appRouter = router({
     filters: publicProcedure.query(async () => {
       return await getFilterOptions();
     }),
+  }),
+  wechat: router({
+    shareConfig: publicProcedure
+      .input(
+        z.object({
+          url: z.string().url(),
+        }),
+      )
+      .query(async ({ input }) => {
+        return await getWeChatShareConfig(input.url);
+      }),
   }),
 });
 

@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useWeChatShare } from "@/hooks/useWeChatShare";
 import LocationPrompt from "@/components/LocationPrompt";
 import MapView from "@/components/MapView";
 import SearchBar from "@/components/SearchBar";
@@ -98,6 +99,7 @@ export default function Home() {
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [hasPrompted, setHasPrompted] = useState(false);
   const [draftKeyword, setDraftKeyword] = useState("");
+  const hasAutoFocusedUserAreaRef = useRef(false);
   const listScrollRef = useRef<HTMLDivElement | null>(null);
   const [filters, setFilters] = useState<SearchFilters>({
     keyword: "",
@@ -108,6 +110,8 @@ export default function Home() {
   const [listOffset, setListOffset] = useState(0);
 
   const location = useLocation();
+
+  useWeChatShare();
 
   useEffect(() => {
     if (
@@ -346,6 +350,15 @@ export default function Home() {
       behavior: "auto",
     });
   }, [listOffset, viewMode]);
+
+  useEffect(() => {
+    if (!userLocation || hasAutoFocusedUserAreaRef.current) {
+      return;
+    }
+
+    hasAutoFocusedUserAreaRef.current = true;
+    setLocateRequest(Date.now());
+  }, [userLocation]);
 
   const searchMessage = useMemo<SearchMessage | null>(() => {
     if (filteredMapData.length > 0) return null;

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MapSite } from "@/types";
 import { wgs84ToGcj02 } from "@shared/coordinate-system";
+import { buildUserAreaFocusPlan } from "@shared/map-location-focus";
 import {
   buildRenderNodes,
   clampZoomLevel,
@@ -65,6 +66,7 @@ const CLUSTER_ZOOM_STEP = 2;
 const MAP_MIN_ZOOM = 3;
 const POI_VISIBLE_MAX_ZOOM = 18;
 const SITE_FOCUS_ZOOM = 15;
+const USER_AREA_FALLBACK_ZOOM = 10;
 const INFO_WINDOW_SAFE_MARGIN_MOBILE = [148, 20, 24, 20] as const;
 const INFO_WINDOW_SAFE_MARGIN_DESKTOP = [132, 24, 28, 24] as const;
 const DEFAULT_VIEWPORT = {
@@ -201,6 +203,55 @@ export default function MapView({
     },
     [displaySites, onHighlightHandled],
   );
+
+  const focusUserArea = useCallback(() => {
+    const map = mapRef.current;
+    const AMap = (window as any).AMap;
+    if (!map || !AMap || !displayUserLocation) {
+      return false;
+    }
+
+    const focusPlan = buildUserAreaFocusPlan({
+      userLocation: {
+        lat: displayUserLocation.lat,
+        lng: displayUserLocation.lng,
+      },
+      sites: displaySites.map((site) => ({
+        id: site.id,
+        latitude: site.displayLatitude,
+        longitude: site.displayLongitude,
+      })),
+    });
+
+    closeInfoWindow();
+
+    if (focusPlan.type === "fit-bounds") {
+      const [zoom, center] = map.getFitZoomAndCenterByBounds(
+        new AMap.Bounds(focusPlan.bounds.southWest, focusPlan.bounds.northEast),
+        [...CLUSTER_FIT_PADDING],
+      );
+
+      if (center) {
+        map.setZoomAndCenter(
+          clampZoomLevel(
+            typeof zoom === "number" ? zoom : focusPlan.maxZoom,
+            Math.max(MAP_MIN_ZOOM, focusPlan.minZoom),
+            Math.min(getMapMaxZoom(map), focusPlan.maxZoom),
+          ),
+          center,
+          true,
+        );
+        return true;
+      }
+    }
+
+    map.setZoomAndCenter(
+      clampZoomLevel(USER_AREA_FALLBACK_ZOOM, MAP_MIN_ZOOM, getMapMaxZoom(map)),
+      new AMap.LngLat(displayUserLocation.lng, displayUserLocation.lat),
+      true,
+    );
+    return true;
+  }, [closeInfoWindow, displaySites, displayUserLocation]);
 
   const updateMarkersRef = useRef<(() => void) | null>(null);
 
@@ -606,24 +657,10 @@ export default function MapView({
   useEffect(() => {
     if (locateRequest == null) return;
 
-    const map = mapRef.current;
-    const AMap = (window as any).AMap;
-    if (!map || !AMap || !displayUserLocation) return;
-
-    closeInfoWindow();
-    map.setZoomAndCenter(
-      clampZoomLevel(12, MAP_MIN_ZOOM, getMapMaxZoom(map)),
-      new AMap.LngLat(displayUserLocation.lng, displayUserLocation.lat),
-      true,
-    );
-    onLocateHandled?.();
-  }, [
-    closeInfoWindow,
-    displayUserLocation,
-    locateRequest,
-    mapLoaded,
-    onLocateHandled,
-  ]);
+    if (focusUserArea()) {
+      onLocateHandled?.();
+    }
+  }, [focusUserArea, locateRequest, mapLoaded, onLocateHandled]);
 
   useEffect(() => {
     if (highlightSiteId == null) return;
