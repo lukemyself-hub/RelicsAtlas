@@ -45,6 +45,23 @@ type SearchMessage = {
 };
 
 const LIST_LIMIT = 50;
+const LOCATION_PROMPT_SEEN_STORAGE_KEY = "relics-atlas-location-prompt-seen";
+
+function readLocationPromptSeen() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.localStorage.getItem(LOCATION_PROMPT_SEEN_STORAGE_KEY) === "1";
+}
+
+function markLocationPromptSeen() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(LOCATION_PROMPT_SEEN_STORAGE_KEY, "1");
+}
 
 function isSameFilters(a: SearchFilters, b: SearchFilters) {
   return (
@@ -100,7 +117,7 @@ export default function Home() {
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [focusLocationPromptActions, setFocusLocationPromptActions] =
     useState(false);
-  const [hasPrompted, setHasPrompted] = useState(false);
+  const [hasPrompted, setHasPrompted] = useState(readLocationPromptSeen);
   const [draftKeyword, setDraftKeyword] = useState("");
   const hasAutoFocusedUserAreaRef = useRef(false);
   const listScrollRef = useRef<HTMLDivElement | null>(null);
@@ -315,12 +332,14 @@ export default function Home() {
     location.requestLocation();
     setShowLocationPrompt(false);
     setFocusLocationPromptActions(false);
+    markLocationPromptSeen();
     setHasPrompted(true);
   }, [location]);
 
   const handleLocationDismiss = useCallback(() => {
     setShowLocationPrompt(false);
     setFocusLocationPromptActions(false);
+    markLocationPromptSeen();
     setHasPrompted(true);
   }, []);
 
@@ -552,7 +571,7 @@ export default function Home() {
             )}
 
             <div className="absolute bottom-6 right-4 z-10 flex flex-col gap-3 md:bottom-8 md:right-6">
-              {!location.granted && !location.denied && (
+              {!location.granted && (
                 <button
                   onClick={() => {
                     setFocusLocationPromptActions(true);

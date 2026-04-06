@@ -45,8 +45,24 @@ export default function LocationPrompt({
       return;
     }
 
-    permissionSectionRef.current?.scrollIntoView({
-      block: "end",
+    const permissionSection = permissionSectionRef.current;
+    if (!permissionSection) return;
+
+    const maxScrollTop =
+      scrollContainer.scrollHeight - scrollContainer.clientHeight;
+    const targetScrollTop = Math.min(
+      Math.max(
+        permissionSection.offsetTop +
+          permissionSection.offsetHeight -
+          scrollContainer.clientHeight +
+          20,
+        0,
+      ),
+      maxScrollTop,
+    );
+
+    scrollContainer.scrollTo({
+      top: targetScrollTop,
       behavior: "auto",
     });
   }, [focusPermissionActions]);
@@ -61,7 +77,7 @@ export default function LocationPrompt({
 
         <div
           ref={scrollContainerRef}
-          className="relative max-h-[min(88dvh,48rem)] overflow-y-auto px-6 pb-6 pt-5 md:px-7 md:pb-7 md:pt-6"
+          className="relative max-h-[min(88dvh,48rem)] overflow-y-auto px-6 pb-8 pt-5 md:px-7 md:pb-10 md:pt-6"
         >
           <div className="flex justify-end">
           <button
