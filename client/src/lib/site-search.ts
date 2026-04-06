@@ -1,5 +1,5 @@
-import type { HeritageSite, SearchFilters } from "@/types";
 import { BATCH_ORDER } from "@/lib/site-data";
+import type { HeritageSite, SearchFilters } from "@/types";
 
 type PreparedSite = {
   site: HeritageSite;
@@ -34,23 +34,31 @@ export function prepareSitesForSearch(sites: HeritageSite[]): PreparedSite[] {
   }));
 }
 
-export function applySiteFilters(preparedSites: PreparedSite[], filters: SearchFilters) {
+export function applySiteFilters(
+  preparedSites: PreparedSite[],
+  filters: SearchFilters,
+) {
   let filtered = preparedSites;
   const keyword = filters.keyword.trim().toLowerCase();
 
   if (keyword) {
     filtered = filtered.filter((entry) => entry.searchText.includes(keyword));
   }
+
   if (filters.batches.length > 0) {
     filtered = filtered.filter(
-      (entry) => entry.batch !== null && filters.batches.includes(entry.batch)
+      (entry) => entry.batch !== null && filters.batches.includes(entry.batch),
     );
   } else {
     filtered = [];
   }
+
   if (filters.types.length > 0) {
-    filtered = filtered.filter((entry) => filters.types.includes(entry.type ?? ""));
+    filtered = filtered.filter((entry) =>
+      filters.types.includes(entry.type ?? ""),
+    );
   }
+
   if (filters.era) {
     const eraQuery = filters.era.toLowerCase();
     filtered = filtered.filter((entry) => entry.eraText.includes(eraQuery));
@@ -61,7 +69,7 @@ export function applySiteFilters(preparedSites: PreparedSite[], filters: SearchF
 
 export function deriveSearchAssist(
   preparedSites: PreparedSite[],
-  filters: SearchFilters
+  filters: SearchFilters,
 ): SearchAssist {
   const strictResults = applySiteFilters(preparedSites, filters);
   const hasKeyword = filters.keyword.trim().length > 0;
@@ -85,10 +93,10 @@ export function deriveSearchAssist(
   const suggestions: SearchSuggestion[] = [];
 
   if (filters.batches.length > 0) {
-      const nextFilters = {
-        ...filters,
-        batches: [...BATCH_ORDER],
-      };
+    const nextFilters = {
+      ...filters,
+      batches: [...BATCH_ORDER],
+    };
     const count = applySiteFilters(preparedSites, nextFilters).length;
     if (count > 0) {
       suggestions.push({
@@ -98,6 +106,7 @@ export function deriveSearchAssist(
       });
     }
   }
+
   if (filters.types.length > 0) {
     const nextFilters = {
       ...filters,
@@ -112,6 +121,7 @@ export function deriveSearchAssist(
       });
     }
   }
+
   if (filters.era) {
     const nextFilters = {
       ...filters,

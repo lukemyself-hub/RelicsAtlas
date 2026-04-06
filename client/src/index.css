@@ -40,52 +40,82 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --font-sans: "Inter", "Noto Sans SC", system-ui, -apple-system, sans-serif;
+  --font-sans:
+    "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", system-ui, -apple-system,
+    sans-serif;
+  --font-serif:
+    "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", serif;
 }
 
 :root {
-  --primary: oklch(0.45 0.15 250);
+  --primary: rgb(5 122 93);
   --primary-foreground: oklch(0.98 0 0);
-  --sidebar-primary: oklch(0.45 0.15 250);
+  --sidebar-primary: rgb(5 122 93);
   --sidebar-primary-foreground: oklch(0.98 0 0);
-  --chart-1: oklch(0.6 0.15 250);
-  --chart-2: oklch(0.5 0.15 250);
-  --chart-3: oklch(0.45 0.15 250);
-  --chart-4: oklch(0.4 0.15 250);
-  --chart-5: oklch(0.35 0.15 250);
-  --radius: 0.5rem;
-  --background: oklch(0.985 0.002 250);
-  --foreground: oklch(0.2 0.02 250);
+  --chart-1: oklch(0.66 0.13 160);
+  --chart-2: oklch(0.58 0.11 165);
+  --chart-3: oklch(0.5 0.1 165);
+  --chart-4: oklch(0.42 0.08 165);
+  --chart-5: oklch(0.34 0.06 165);
+  --radius: 1.1rem;
+  --background: rgb(248 244 237);
+  --foreground: rgb(24 28 26);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.2 0.02 250);
+  --card-foreground: rgb(24 28 26);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2 0.02 250);
-  --secondary: oklch(0.95 0.01 250);
-  --secondary-foreground: oklch(0.35 0.05 250);
-  --muted: oklch(0.95 0.005 250);
-  --muted-foreground: oklch(0.5 0.02 250);
-  --accent: oklch(0.94 0.01 250);
-  --accent-foreground: oklch(0.2 0.02 250);
+  --popover-foreground: rgb(24 28 26);
+  --secondary: rgb(237 233 224);
+  --secondary-foreground: rgb(43 53 49);
+  --muted: rgb(242 238 230);
+  --muted-foreground: rgb(102 110 106);
+  --accent: rgb(232 241 236);
+  --accent-foreground: rgb(18 43 35);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.9 0.01 250);
-  --input: oklch(0.9 0.01 250);
-  --ring: oklch(0.45 0.15 250);
-  --sidebar: oklch(0.985 0.002 250);
-  --sidebar-foreground: oklch(0.2 0.02 250);
-  --sidebar-accent: oklch(0.94 0.01 250);
-  --sidebar-accent-foreground: oklch(0.2 0.02 250);
-  --sidebar-border: oklch(0.9 0.01 250);
-  --sidebar-ring: oklch(0.45 0.15 250);
+  --border: rgb(216 219 212);
+  --input: rgb(216 219 212);
+  --ring: rgb(5 122 93);
+  --sidebar: rgb(248 244 237);
+  --sidebar-foreground: rgb(24 28 26);
+  --sidebar-accent: rgb(232 241 236);
+  --sidebar-accent-foreground: rgb(18 43 35);
+  --sidebar-border: rgb(216 219 212);
+  --sidebar-ring: rgb(5 122 93);
 }
 
 @layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
   * {
     @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings:
+      "ss01" 1,
+      "cv02" 1;
+    background-image:
+      radial-gradient(circle at top, rgba(5, 122, 93, 0.08), transparent 22rem),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0));
   }
+
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: var(--font-sans);
+    letter-spacing: -0.03em;
+  }
+
+  ::selection {
+    background: rgba(5, 122, 93, 0.18);
+    color: rgb(15 29 24);
+  }
+
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
   [type="button"]:not(:disabled),
@@ -113,6 +143,47 @@
     min-width: 0;
   }
 
+  .page-shell {
+    background:
+      radial-gradient(
+        circle at top right,
+        rgba(5, 122, 93, 0.09),
+        transparent 22rem
+      ),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0));
+  }
+
+  .editorial-card {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(216, 219, 212, 0.85);
+    box-shadow: 0 24px 48px rgba(19, 34, 29, 0.08);
+    backdrop-filter: blur(16px);
+  }
+
+  .map-wash {
+    background:
+      radial-gradient(
+        circle at top,
+        rgba(255, 255, 255, 0.56),
+        transparent 30%
+      ),
+      linear-gradient(
+        180deg,
+        rgba(248, 244, 237, 0.34),
+        rgba(248, 244, 237, 0.18)
+      ),
+      linear-gradient(
+        90deg,
+        rgba(248, 244, 237, 0.16),
+        rgba(255, 255, 255, 0.04)
+      );
+  }
+
+  .font-serif-accent {
+    font-family: var(--font-serif);
+    letter-spacing: -0.035em;
+  }
+
   @media (min-width: 640px) {
     .container {
       padding-left: 1.5rem;
@@ -134,7 +205,7 @@
   width: 100%;
   height: 100%;
   z-index: 0;
-  font-family: "Inter", "Noto Sans SC", system-ui, sans-serif;
+  font-family: var(--font-sans);
 }
 
 .leaflet-popup-content-wrapper {

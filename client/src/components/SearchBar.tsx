@@ -1,8 +1,7 @@
-import { useState, useRef, useEffect, useMemo } from "react";
-import { Search, X, SlidersHorizontal, Check } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, Search, SlidersHorizontal, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -11,10 +10,19 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { Input } from "@/components/ui/input";
 import { useComposition } from "@/hooks/useComposition";
-import { cn } from "@/lib/utils";
-import type { SearchFilters, FilterOptions } from "@/types";
+import { useIsMobile } from "@/hooks/useMobile";
 import { BATCH_ORDER, DEFAULT_BATCHES } from "@/lib/site-data";
+import { cn } from "@/lib/utils";
+import type { FilterOptions, SearchFilters } from "@/types";
 
 interface SearchBarProps {
   filters: SearchFilters;
@@ -35,7 +43,8 @@ export default function SearchBar({
 }: SearchBarProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [eraKeyword, setEraKeyword] = useState("");
-  const filterRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
   const composition = useComposition<HTMLInputElement>({
     onKeyDown: (event) => {
       if (event.key === "Enter") {
@@ -46,21 +55,20 @@ export default function SearchBar({
   });
 
   useEffect(() => {
-    if (!showFilters) return;
+    if (isMobile || !showFilters) return;
     const handler = (event: PointerEvent) => {
       const target = event.target;
       if (
-        filterRef.current &&
+        rootRef.current &&
         target instanceof Node &&
-        !filterRef.current.contains(target)
+        !rootRef.current.contains(target)
       ) {
         setShowFilters(false);
       }
     };
-
     document.addEventListener("pointerdown", handler, true);
     return () => document.removeEventListener("pointerdown", handler, true);
-  }, [showFilters]);
+  }, [isMobile, showFilters]);
 
   useEffect(() => {
     if (!showFilters) {
@@ -80,21 +88,213 @@ export default function SearchBar({
   const filteredEras = useMemo(() => {
     const eras = filterOptions?.eras || [];
     const keyword = eraKeyword.trim().toLowerCase();
-    if (!keyword) {
-      return eras;
-    }
-
+    if (!keyword) return eras;
     return eras.filter((era) => era.toLowerCase().includes(keyword));
   }, [eraKeyword, filterOptions?.eras]);
 
   const clearAllFilters = () => {
     onDraftKeywordChange("");
-    onFiltersChange({ keyword: "", batches: [...DEFAULT_BATCHES], types: [], era: "" });
+    onFiltersChange({
+      keyword: "",
+      batches: [...DEFAULT_BATCHES],
+      types: [],
+      era: "",
+    });
   };
 
+  const filterPanel = (
+    <div className="space-y-6">
+      <section className="space-y-3">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+              批次
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              默认展示前三批，可根据需要扩大范围。
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2 text-xs font-medium text-primary">
+            <button
+              onClick={() =>
+                onFiltersChange({ ...filters, batches: [...DEFAULT_BATCHES] })
+              }
+            >
+              前三批
+            </button>
+            <span className="text-border">/</span>
+            <button
+              onClick={() =>
+                onFiltersChange({ ...filters, batches: [...BATCH_ORDER] })
+              }
+            >
+              全选
+            </button>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {BATCH_ORDER.map((batch) => {
+            const selected = filters.batches.includes(batch);
+            return (
+              <button
+                key={batch}
+                onClick={() => {
+                  const next = selected
+                    ? filters.batches.filter((item) => item !== batch)
+                    : [...filters.batches, batch];
+                  onFiltersChange({ ...filters, batches: next });
+                }}
+                className={cn(
+                  "rounded-full border px-4 py-2 text-sm font-semibold transition-colors",
+                  selected
+                    ? "border-primary bg-primary text-primary-foreground shadow-[0_12px_24px_rgba(5,122,93,0.18)]"
+                    : "border-border bg-white text-foreground hover:border-primary/40 hover:bg-accent",
+                )}
+              >
+                {batch}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+              文物类别
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              不选择代表全部类别。
+            </p>
+          </div>
+          {filters.types.length > 0 && (
+            <button
+              onClick={() => onFiltersChange({ ...filters, types: [] })}
+              className="shrink-0 text-xs font-medium text-primary"
+            >
+              恢复全部
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {(filterOptions?.types || []).map((type) => {
+            const allTypes = filterOptions?.types || [];
+            const selected =
+              filters.types.length === 0 || filters.types.includes(type);
+            return (
+              <button
+                key={type}
+                onClick={() => {
+                  if (filters.types.length === 0) {
+                    onFiltersChange({
+                      ...filters,
+                      types: allTypes.filter((item) => item !== type),
+                    });
+                    return;
+                  }
+
+                  if (filters.types.includes(type)) {
+                    const next = filters.types.filter((item) => item !== type);
+                    onFiltersChange({
+                      ...filters,
+                      types: next.length === 0 ? [] : next,
+                    });
+                    return;
+                  }
+
+                  const next = [...filters.types, type];
+                  onFiltersChange({
+                    ...filters,
+                    types: next.length === allTypes.length ? [] : next,
+                  });
+                }}
+                className={cn(
+                  "rounded-full border px-4 py-2 text-sm font-semibold transition-colors",
+                  selected
+                    ? "border-primary/20 bg-primary/10 text-primary"
+                    : "border-border bg-white text-foreground hover:border-primary/30 hover:bg-accent",
+                )}
+              >
+                {type}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+              时代
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              支持按时代关键词快速检索。
+            </p>
+          </div>
+          {filters.era && (
+            <button
+              onClick={() => onFiltersChange({ ...filters, era: "" })}
+              className="shrink-0 text-xs font-medium text-primary"
+            >
+              清除
+            </button>
+          )}
+        </div>
+
+        <div className="overflow-hidden rounded-[26px] border border-border bg-white">
+          <Command shouldFilter={false} className="bg-transparent">
+            <CommandInput
+              value={eraKeyword}
+              onValueChange={setEraKeyword}
+              placeholder="搜索时代，如：清、唐、辽金"
+              className="h-12"
+            />
+            <CommandList className="max-h-56 px-2 pb-2">
+              <CommandEmpty className="px-3 py-6 text-sm text-muted-foreground">
+                未找到匹配时代
+              </CommandEmpty>
+              <CommandGroup className="space-y-1">
+                <CommandItem
+                  onSelect={() => onFiltersChange({ ...filters, era: "" })}
+                  className="rounded-2xl px-3 py-3 text-sm"
+                >
+                  <Check
+                    className={cn(
+                      "h-4 w-4",
+                      !filters.era ? "opacity-100" : "opacity-0",
+                    )}
+                  />
+                  <span>全部时代</span>
+                </CommandItem>
+                {filteredEras.map((era) => (
+                  <CommandItem
+                    key={era}
+                    value={era}
+                    onSelect={() => onFiltersChange({ ...filters, era })}
+                    className="rounded-2xl px-3 py-3 text-sm"
+                  >
+                    <Check
+                      className={cn(
+                        "h-4 w-4",
+                        filters.era === era ? "opacity-100" : "opacity-0",
+                      )}
+                    />
+                    <span className="truncate">{era}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </div>
+      </section>
+    </div>
+  );
+
   return (
-    <div className="relative" ref={filterRef}>
-      <div className="flex items-center gap-2">
+    <div className="relative" ref={rootRef}>
+      <div className="flex items-center gap-3">
         <form
           className="flex min-w-0 flex-1 items-center gap-2"
           onSubmit={(event) => {
@@ -103,17 +303,17 @@ export default function SearchBar({
           }}
         >
           <div className="relative min-w-0 flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#6f756f]" />
             <Input
               type="text"
               enterKeyHint="search"
-              placeholder="搜索文保单位名称..."
+              placeholder="搜索文化遗产、古建筑、遗址…"
               value={draftKeyword}
-              onChange={(e) => onDraftKeywordChange(e.target.value)}
+              onChange={(event) => onDraftKeywordChange(event.target.value)}
               onKeyDown={composition.onKeyDown}
               onCompositionStart={composition.onCompositionStart}
               onCompositionEnd={composition.onCompositionEnd}
-              className="h-10 bg-white pl-9 pr-8 shadow-sm border-border/60"
+              className="h-12 border-white/20 bg-white pl-12 pr-11 text-[15px] text-[#202422] shadow-[0_14px_28px_rgba(12,32,25,0.18)] placeholder:text-[#7d837e] focus-visible:border-white/50 focus-visible:ring-white/25 md:h-14 md:text-base"
             />
             {draftKeyword && (
               <button
@@ -122,177 +322,86 @@ export default function SearchBar({
                   onDraftKeywordChange("");
                   onFiltersChange({ ...filters, keyword: "" });
                 }}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                aria-label="清空搜索词"
+                className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-[#6f756f] transition-colors hover:bg-black/5 hover:text-foreground"
+                aria-label="清除搜索"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
           </div>
-
-          <Button type="submit" size="sm" className="h-10 shrink-0 px-3 shadow-sm">
+          <Button
+            type="submit"
+            className="h-12 shrink-0 rounded-full bg-white px-4 text-primary shadow-[0_14px_28px_rgba(12,32,25,0.18)] hover:bg-white/92 md:h-14"
+          >
             搜索
           </Button>
         </form>
 
-        <Button
-          variant={activeFilterCount > 0 ? "default" : "outline"}
-          size="sm"
-          onClick={() => setShowFilters(!showFilters)}
-          className="h-10 shrink-0 gap-1.5 px-3 shadow-sm"
-        >
-          <SlidersHorizontal className="h-4 w-4" />
-          <span className="hidden sm:inline">筛选</span>
+        <div className="relative shrink-0">
+          <Button
+            variant="ghost"
+            size="icon-lg"
+            onClick={() => setShowFilters((current) => !current)}
+            className="h-12 w-12 rounded-full border border-white/22 bg-white/10 text-white shadow-[0_14px_28px_rgba(12,32,25,0.14)] backdrop-blur-md hover:bg-white/16"
+            aria-label="打开筛选"
+          >
+            <SlidersHorizontal className="h-5 w-5" />
+          </Button>
           {activeFilterCount > 0 && (
-            <Badge
-              variant="secondary"
-              className="ml-0.5 flex h-5 w-5 items-center justify-center rounded-full p-0 text-xs"
-            >
+            <Badge className="absolute -right-1 -top-1 h-6 min-w-6 border-white/20 bg-[#dcefe8] px-1.5 text-[11px] text-primary shadow-sm">
               {activeFilterCount}
             </Badge>
           )}
-        </Button>
+        </div>
       </div>
 
-      {showFilters && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-2 animate-in slide-in-from-top-2 fade-in rounded-lg border border-border/60 bg-white p-4 shadow-lg duration-200">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-sm font-medium text-foreground">筛选条件</span>
+      {!isMobile && showFilters && (
+        <div className="editorial-card absolute right-0 top-full z-50 mt-4 w-[min(36rem,calc(100vw-2rem))] rounded-[32px] p-5">
+          <div className="mb-5 flex items-start justify-between gap-4">
+            <div>
+              <h3 className="font-display text-2xl font-semibold text-foreground">
+                筛选文保单位
+              </h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                当前共启用 {activeFilterCount} 项筛选规则。
+              </p>
+            </div>
             {activeFilterCount > 0 && (
-              <button
-                onClick={clearAllFilters}
-                className="text-xs text-primary hover:underline"
-              >
+              <Button variant="outline" size="sm" onClick={clearAllFilters}>
                 恢复默认
-              </button>
+              </Button>
             )}
           </div>
-
-          <div className="mb-3">
-            <div className="mb-1.5 flex items-center justify-between">
-              <label className="text-xs text-muted-foreground">批次</label>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => onFiltersChange({ ...filters, batches: [...DEFAULT_BATCHES] })}
-                  className="text-xs text-primary hover:underline"
-                >
-                  前三批
-                </button>
-                <button
-                  onClick={() => onFiltersChange({ ...filters, batches: [...BATCH_ORDER] })}
-                  className="text-xs text-primary hover:underline"
-                >
-                  全选
-                </button>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {BATCH_ORDER.map((b) => (
-                <button
-                  key={b}
-                  onClick={() => {
-                    const isSelected = filters.batches.includes(b);
-                    const next = isSelected
-                      ? filters.batches.filter((batch) => batch !== b)
-                      : [...filters.batches, b];
-
-                    onFiltersChange({
-                      ...filters,
-                      batches: next,
-                    });
-                  }}
-                  className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                    filters.batches.includes(b)
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-transparent bg-secondary/50 text-secondary-foreground hover:bg-secondary"
-                  }`}
-                >
-                  {b}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="mb-3">
-            <div className="mb-1.5 flex items-center justify-between">
-              <label className="text-xs text-muted-foreground">文物类型</label>
-              {filters.types.length > 0 && (
-                <button
-                  onClick={() => onFiltersChange({ ...filters, types: [] })}
-                  className="text-xs text-primary hover:underline"
-                >
-                  全选
-                </button>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {(filterOptions?.types || []).map((t) => {
-                const allTypes = filterOptions?.types || [];
-                const isSelected = filters.types.length === 0 || filters.types.includes(t);
-                return (
-                  <button
-                    key={t}
-                    onClick={() => {
-                      if (filters.types.length === 0) {
-                        onFiltersChange({ ...filters, types: allTypes.filter((x) => x !== t) });
-                      } else if (filters.types.includes(t)) {
-                        const next = filters.types.filter((x) => x !== t);
-                        onFiltersChange({ ...filters, types: next.length === 0 ? [] : next });
-                      } else {
-                        const next = [...filters.types, t];
-                        onFiltersChange({
-                          ...filters,
-                          types: next.length === allTypes.length ? [] : next,
-                        });
-                      }
-                    }}
-                    className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                      isSelected
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-transparent bg-secondary/50 text-secondary-foreground hover:bg-secondary"
-                    }`}
-                  >
-                    {t}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-xs text-muted-foreground">时代</label>
-            <div className="overflow-hidden rounded-md border border-border">
-              <Command shouldFilter={false}>
-                <CommandInput
-                  value={eraKeyword}
-                  onValueChange={setEraKeyword}
-                  placeholder="搜索时代..."
-                />
-                <CommandList className="max-h-48">
-                  <CommandEmpty>未找到匹配时代</CommandEmpty>
-                  <CommandGroup>
-                    <CommandItem onSelect={() => onFiltersChange({ ...filters, era: "" })}>
-                      <Check className={cn("h-4 w-4", !filters.era ? "opacity-100" : "opacity-0")} />
-                      <span>全部时代</span>
-                    </CommandItem>
-                    {filteredEras.map((era) => (
-                      <CommandItem
-                        key={era}
-                        value={era}
-                        onSelect={() => onFiltersChange({ ...filters, era })}
-                      >
-                        <Check
-                          className={cn("h-4 w-4", filters.era === era ? "opacity-100" : "opacity-0")}
-                        />
-                        <span className="truncate">{era}</span>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </div>
-          </div>
+          {filterPanel}
         </div>
+      )}
+
+      {isMobile && (
+        <Drawer open={showFilters} onOpenChange={setShowFilters}>
+          <DrawerContent className="rounded-t-[32px] border-border bg-background">
+            <DrawerHeader className="px-5 pb-2 pt-5 text-left">
+              <DrawerTitle className="font-display text-2xl font-semibold text-foreground">
+                筛选文保单位
+              </DrawerTitle>
+              <DrawerDescription className="text-sm">
+                让结果更贴近你关心的批次、类别与时代。
+              </DrawerDescription>
+            </DrawerHeader>
+            <div className="max-h-[70vh] overflow-y-auto px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
+              <div className="mb-5 flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  当前共启用 {activeFilterCount} 项筛选规则
+                </div>
+                {activeFilterCount > 0 && (
+                  <Button variant="outline" size="sm" onClick={clearAllFilters}>
+                    恢复默认
+                  </Button>
+                )}
+              </div>
+              {filterPanel}
+            </div>
+          </DrawerContent>
+        </Drawer>
       )}
     </div>
   );

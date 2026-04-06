@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MapSite } from "@/types";
 import { wgs84ToGcj02 } from "@shared/coordinate-system";
 import {
@@ -99,6 +99,7 @@ export default function MapView({
   const lastViewportRef = useRef<MapViewport | null>(null);
   const lastFitRequestRef = useRef<number | undefined>(undefined);
   const [mapLoaded, setMapLoaded] = useState(false);
+
   const displaySites = useMemo(
     () =>
       sites.map((site) => {
@@ -109,8 +110,9 @@ export default function MapView({
           displayLatitude: displayPoint.lat,
         };
       }),
-    [sites]
+    [sites],
   );
+
   const displayUserLocation = useMemo(() => {
     if (!userLocation) return null;
     return wgs84ToGcj02(userLocation.lng, userLocation.lat);
@@ -152,7 +154,7 @@ export default function MapView({
       const infoWindow = new AMap.InfoWindow({
         content: createSiteInfoContent(site, () => onSiteClick(site.id)),
         isCustom: true,
-        offset: new AMap.Pixel(0, -42),
+        offset: new AMap.Pixel(0, -58),
       });
 
       const position = lngLat ?? marker.getPosition?.();
@@ -161,7 +163,7 @@ export default function MapView({
         infoWindowRef.current = infoWindow;
       }
     },
-    [closeInfoWindow, onSiteClick]
+    [closeInfoWindow, onSiteClick],
   );
 
   const focusSite = useCallback(
@@ -182,12 +184,15 @@ export default function MapView({
       const maxZoom = getMapMaxZoom(map);
       map.setZoomAndCenter(
         clampZoomLevel(SITE_FOCUS_ZOOM, MAP_MIN_ZOOM, maxZoom),
-        new AMap.LngLat(displaySite.displayLongitude, displaySite.displayLatitude),
-        true
+        new AMap.LngLat(
+          displaySite.displayLongitude,
+          displaySite.displayLatitude,
+        ),
+        true,
       );
       onHighlightHandled?.(siteId);
     },
-    [displaySites, onHighlightHandled]
+    [displaySites, onHighlightHandled],
   );
 
   const updateMarkersRef = useRef<(() => void) | null>(null);
@@ -213,22 +218,26 @@ export default function MapView({
     onViewportChangeRef.current?.(viewport);
   }, [getCurrentViewport]);
 
-  const scheduleRefresh = useCallback((shouldReportViewport = false) => {
-    pendingViewportReportRef.current = pendingViewportReportRef.current || shouldReportViewport;
-    if (refreshFrameRef.current !== null) {
-      return;
-    }
-
-    refreshFrameRef.current = window.requestAnimationFrame(() => {
-      refreshFrameRef.current = null;
-      updateMarkersRef.current?.();
-
-      if (pendingViewportReportRef.current) {
-        pendingViewportReportRef.current = false;
-        reportViewportChange();
+  const scheduleRefresh = useCallback(
+    (shouldReportViewport = false) => {
+      pendingViewportReportRef.current =
+        pendingViewportReportRef.current || shouldReportViewport;
+      if (refreshFrameRef.current !== null) {
+        return;
       }
-    });
-  }, [reportViewportChange]);
+
+      refreshFrameRef.current = window.requestAnimationFrame(() => {
+        refreshFrameRef.current = null;
+        updateMarkersRef.current?.();
+
+        if (pendingViewportReportRef.current) {
+          pendingViewportReportRef.current = false;
+          reportViewportChange();
+        }
+      });
+    },
+    [reportViewportChange],
+  );
 
   useEffect(() => {
     pendingFocusSiteIdRef.current = highlightSiteId ?? null;
@@ -250,7 +259,8 @@ export default function MapView({
     };
 
     const script = document.createElement("script");
-    script.src = "https://webapi.amap.com/maps?v=2.0&key=006cfca5044ae7c111675b920aabdfc5";
+    script.src =
+      "https://webapi.amap.com/maps?v=2.0&key=006cfca5044ae7c111675b920aabdfc5";
     script.async = true;
     script.onload = () => {
       setMapLoaded(true);
@@ -278,13 +288,13 @@ export default function MapView({
       zoom: clampZoomLevel(
         initialViewportRef.current?.zoom ?? DEFAULT_VIEWPORT.zoom,
         MAP_MIN_ZOOM,
-        POI_VISIBLE_MAX_ZOOM
+        POI_VISIBLE_MAX_ZOOM,
       ),
       center: [
         initialViewportRef.current?.center.lng ?? DEFAULT_VIEWPORT.center.lng,
         initialViewportRef.current?.center.lat ?? DEFAULT_VIEWPORT.center.lat,
       ],
-      mapStyle: "amap://styles/light",
+      mapStyle: "amap://styles/whitesmoke",
       zooms: [MAP_MIN_ZOOM, POI_VISIBLE_MAX_ZOOM],
     });
 
@@ -334,10 +344,63 @@ export default function MapView({
     map.setZoomAndCenter(
       clampZoomLevel(initialViewport.zoom, MAP_MIN_ZOOM, getMapMaxZoom(map)),
       new AMap.LngLat(initialViewport.center.lng, initialViewport.center.lat),
-      true
+      true,
     );
     scheduleRefresh(true);
   }, [getCurrentViewport, initialViewport, scheduleRefresh]);
+
+  useEffect(() => {
+    if (fitRequest == null || fitRequest === lastFitRequestRef.current) return;
+
+    const map = mapRef.current;
+    const AMap = (window as any).AMap;
+    if (!map || !AMap || displaySites.length === 0) {
+      lastFitRequestRef.current = fitRequest;
+      return;
+    }
+
+    closeInfoWindow();
+
+    if (displaySites.length === 1) {
+      const site = displaySites[0];
+      map.setZoomAndCenter(
+        clampZoomLevel(SITE_FOCUS_ZOOM, MAP_MIN_ZOOM, getMapMaxZoom(map)),
+        new AMap.LngLat(site.displayLongitude, site.displayLatitude),
+        true,
+      );
+      lastFitRequestRef.current = fitRequest;
+      return;
+    }
+
+    const bounds = getClusterFocusBounds(
+      displaySites.map((site) => ({
+        ...site,
+        latitude: site.displayLatitude,
+        longitude: site.displayLongitude,
+      })),
+    );
+
+    if (bounds) {
+      const [zoom, center] = map.getFitZoomAndCenterByBounds(
+        new AMap.Bounds(bounds.southWest, bounds.northEast),
+        [...CLUSTER_FIT_PADDING],
+      );
+
+      if (center) {
+        map.setZoomAndCenter(
+          clampZoomLevel(
+            typeof zoom === "number" ? zoom : DEFAULT_VIEWPORT.zoom,
+            MAP_MIN_ZOOM,
+            getMapMaxZoom(map),
+          ),
+          center,
+          true,
+        );
+      }
+    }
+
+    lastFitRequestRef.current = fitRequest;
+  }, [closeInfoWindow, displaySites, fitRequest]);
 
   const updateMarkers = useCallback(() => {
     const map = mapRef.current;
@@ -346,7 +409,9 @@ export default function MapView({
 
     if (!displaySites.length) {
       if (markersRef.current.size > 0) {
-        map.remove(Array.from(markersRef.current.values(), (entry) => entry.marker));
+        map.remove(
+          Array.from(markersRef.current.values(), (entry) => entry.marker),
+        );
         markersRef.current.clear();
       }
       closeInfoWindow();
@@ -359,29 +424,41 @@ export default function MapView({
       height: size?.height ?? containerRef.current.clientHeight,
     };
 
-    const clusterDisplaySites: ClusterDisplaySite[] = displaySites.map((site) => ({
-      ...site,
-      longitude: site.displayLongitude,
-      latitude: site.displayLatitude,
-    }));
+    const clusterDisplaySites: ClusterDisplaySite[] = displaySites.map(
+      (site) => ({
+        ...site,
+        longitude: site.displayLongitude,
+        latitude: site.displayLatitude,
+      }),
+    );
 
-    const projectedSites = projectVisibleSites(clusterDisplaySites, viewport, (site) => {
-      const point = map.lngLatToContainer(new AMap.LngLat(site.longitude, site.latitude));
-      if (!point) return null;
-      return { x: point.getX(), y: point.getY() };
-    });
+    const projectedSites = projectVisibleSites(
+      clusterDisplaySites,
+      viewport,
+      (site) => {
+        const point = map.lngLatToContainer(
+          new AMap.LngLat(site.longitude, site.latitude),
+        );
+        if (!point) return null;
+        return { x: point.getX(), y: point.getY() };
+      },
+    );
 
     const radiusPx = getDynamicClusterRadius(viewport);
-    const clusters = clusterProjectedSites(projectedSites, radiusPx, (point) => {
-      const lngLat = map.containerToLngLat(new AMap.Pixel(point.x, point.y));
-      if (!lngLat) return null;
-      return { lat: lngLat.getLat(), lng: lngLat.getLng() };
-    });
+    const clusters = clusterProjectedSites(
+      projectedSites,
+      radiusPx,
+      (point) => {
+        const lngLat = map.containerToLngLat(new AMap.Pixel(point.x, point.y));
+        if (!lngLat) return null;
+        return { lat: lngLat.getLat(), lng: lngLat.getLng() };
+      },
+    );
 
     const siteById = new Map(displaySites.map((site) => [site.id, site]));
     const nextNodes = matchTransitionSources(
       Array.from(markersRef.current.values(), (entry) => entry.node),
-      buildRenderNodes(clusters)
+      buildRenderNodes(clusters),
     );
     const previousMarkersByKey = new Map(markersRef.current);
     const nextMarkerRecords = new Map<string, MarkerRecord>();
@@ -393,6 +470,7 @@ export default function MapView({
       if (existing) {
         previousMarkersByKey.delete(node.key);
         updateMarkerRecord({
+          AMap,
           node,
           record: existing,
           siteById,
@@ -408,7 +486,9 @@ export default function MapView({
         AMap,
         node,
         siteById,
-        sourceNode: node.sourceKey ? markersRef.current.get(node.sourceKey)?.node : undefined,
+        sourceNode: node.sourceKey
+          ? markersRef.current.get(node.sourceKey)?.node
+          : undefined,
         onClusterClick: (cluster) => {
           suppressNextMapClick();
           focusCluster(map, AMap, cluster);
@@ -420,20 +500,24 @@ export default function MapView({
         },
       });
 
-      if (!newRecord) {
-        continue;
-      }
+      if (!newRecord) continue;
 
       nextMarkerRecords.set(node.key, newRecord);
       map.add(newRecord.marker);
     }
 
     if (previousMarkersByKey.size > 0) {
-      map.remove(Array.from(previousMarkersByKey.values(), (entry) => entry.marker));
+      map.remove(
+        Array.from(previousMarkersByKey.values(), (entry) => entry.marker),
+      );
     }
 
     for (const entry of Array.from(nextMarkerRecords.values())) {
-      animateMarkerToNode(entry.marker, entry.node, entry.node.sourceKey !== undefined);
+      animateMarkerToNode(
+        entry.marker,
+        entry.node,
+        entry.node.sourceKey !== undefined,
+      );
 
       if (pendingInfoSiteIdRef.current !== null && entry.node.type === "site") {
         const site = siteById.get(pendingInfoSiteIdRef.current);
@@ -483,18 +567,21 @@ export default function MapView({
 
     const userContent = document.createElement("div");
     userContent.style.cssText = `
-      width: 16px;
-      height: 16px;
-      background: #3b82f6;
-      border: 3px solid white;
+      width: 18px;
+      height: 18px;
+      background: #057a5d;
+      border: 4px solid rgba(255,255,255,0.95);
       border-radius: 50%;
-      box-shadow: 0 0 0 2px rgba(59,130,246,0.3), 0 2px 4px rgba(0,0,0,0.2);
+      box-shadow: 0 0 0 8px rgba(5,122,93,0.16), 0 14px 24px rgba(5,122,93,0.12);
     `;
 
     const userMarker = new AMap.Marker({
-      position: new AMap.LngLat(displayUserLocation.lng, displayUserLocation.lat),
+      position: new AMap.LngLat(
+        displayUserLocation.lng,
+        displayUserLocation.lat,
+      ),
       content: userContent,
-      offset: new AMap.Pixel(-8, -8),
+      offset: new AMap.Pixel(-9, -9),
       zIndex: 1000,
     });
 
@@ -520,66 +607,28 @@ export default function MapView({
     map.setZoomAndCenter(
       clampZoomLevel(12, MAP_MIN_ZOOM, getMapMaxZoom(map)),
       new AMap.LngLat(displayUserLocation.lng, displayUserLocation.lat),
-      true
+      true,
     );
     onLocateHandled?.();
-  }, [closeInfoWindow, displayUserLocation, locateRequest, mapLoaded, onLocateHandled]);
-
-  useEffect(() => {
-    if (fitRequest == null || fitRequest === lastFitRequestRef.current) return;
-
-    const map = mapRef.current;
-    const AMap = (window as any).AMap;
-    if (!map || !AMap || displaySites.length === 0) {
-      lastFitRequestRef.current = fitRequest;
-      return;
-    }
-
-    closeInfoWindow();
-    lastFitRequestRef.current = fitRequest;
-
-    if (displaySites.length === 1) {
-      const site = displaySites[0];
-      map.setZoomAndCenter(
-        clampZoomLevel(SITE_FOCUS_ZOOM, MAP_MIN_ZOOM, getMapMaxZoom(map)),
-        new AMap.LngLat(site.displayLongitude, site.displayLatitude),
-        true
-      );
-      return;
-    }
-
-    const bounds = getClusterFocusBounds(
-      displaySites.map((site) => ({
-        ...site,
-        latitude: site.displayLatitude,
-        longitude: site.displayLongitude,
-      }))
-    );
-    if (!bounds) return;
-
-    const [zoom, center] = map.getFitZoomAndCenterByBounds(
-      new AMap.Bounds(bounds.southWest, bounds.northEast),
-      [...CLUSTER_FIT_PADDING]
-    );
-    if (!center) return;
-
-    map.setZoomAndCenter(
-      clampZoomLevel(
-        typeof zoom === "number" ? zoom : DEFAULT_VIEWPORT.zoom,
-        MAP_MIN_ZOOM,
-        getMapMaxZoom(map)
-      ),
-      center,
-      true
-    );
-  }, [closeInfoWindow, displaySites, fitRequest]);
+  }, [
+    closeInfoWindow,
+    displayUserLocation,
+    locateRequest,
+    mapLoaded,
+    onLocateHandled,
+  ]);
 
   useEffect(() => {
     if (highlightSiteId == null) return;
     focusSite(highlightSiteId);
   }, [focusSite, highlightSiteId]);
 
-  return <div ref={containerRef} className="w-full h-full" style={{ minHeight: "300px" }} />;
+  return (
+    <div className="relative h-full w-full" style={{ minHeight: "300px" }}>
+      <div ref={containerRef} className="h-full w-full" />
+      <div className="map-wash pointer-events-none absolute inset-0" />
+    </div>
+  );
 }
 
 function createMarkerRecord({
@@ -597,18 +646,21 @@ function createMarkerRecord({
   onClusterClick: (cluster: ClusterGroup<DisplayMapSite>) => void;
   onSiteMarkerClick: (site: DisplayMapSite, marker: any, lngLat?: any) => void;
 }): MarkerRecord | null {
+  const extData = buildMarkerExtData(node, siteById);
+  if (!extData) return null;
+
   const position = sourceNode ?? node;
   const marker = new AMap.Marker({
     position: new AMap.LngLat(position.anchorLng, position.anchorLat),
     content:
-      node.type === "site"
-        ? createSiteMarkerContent()
+      extData.kind === "site"
+        ? createSiteMarkerContent(extData.site.type)
         : createClusterMarkerContent(node.count),
-    offset: node.type === "site" ? new AMap.Pixel(-14, -28) : new AMap.Pixel(-20, -20),
+    offset:
+      extData.kind === "site"
+        ? new AMap.Pixel(-22, -54)
+        : new AMap.Pixel(-26, -26),
   });
-
-  const extData = buildMarkerExtData(node, siteById);
-  if (!extData) return null;
 
   marker.setExtData(extData);
   marker.on("click", (event: any) => {
@@ -633,23 +685,36 @@ function createMarkerRecord({
 function updateMarkerRecord({
   node,
   record,
+  AMap,
   siteById,
 }: {
   node: RenderNode;
   record: MarkerRecord;
+  AMap: any;
   siteById: Map<number, DisplayMapSite>;
 }) {
   const extData = buildMarkerExtData(node, siteById);
-  if (!extData) {
-    return;
-  }
+  if (!extData) return;
 
   record.marker.setExtData(extData);
   record.marker.setTitle?.(extData.kind === "site" ? extData.site.name : "");
+  record.marker.setContent?.(
+    extData.kind === "site"
+      ? createSiteMarkerContent(extData.site.type)
+      : createClusterMarkerContent(node.count),
+  );
+  record.marker.setOffset?.(
+    extData.kind === "site"
+      ? new AMap.Pixel(-22, -54)
+      : new AMap.Pixel(-26, -26),
+  );
   record.node = node;
 }
 
-function buildMarkerExtData(node: RenderNode, siteById: Map<number, DisplayMapSite>) {
+function buildMarkerExtData(
+  node: RenderNode,
+  siteById: Map<number, DisplayMapSite>,
+) {
   if (node.type === "site") {
     const site = siteById.get(node.siteIds[0]);
     if (!site) return null;
@@ -679,37 +744,44 @@ function buildMarkerExtData(node: RenderNode, siteById: Map<number, DisplayMapSi
   };
 }
 
-function focusCluster(map: any, AMap: any, cluster: ClusterGroup<DisplayMapSite>) {
+function focusCluster(
+  map: any,
+  AMap: any,
+  cluster: ClusterGroup<DisplayMapSite>,
+) {
   const bounds = getClusterFocusBounds(
     cluster.sites.map((site) => ({
       ...site,
       latitude: site.displayLatitude,
       longitude: site.displayLongitude,
-    }))
+    })),
   );
   const zoomRange = map.getZooms?.();
-  const maxZoom = Array.isArray(zoomRange) ? zoomRange[1] : POI_VISIBLE_MAX_ZOOM;
+  const maxZoom = Array.isArray(zoomRange)
+    ? zoomRange[1]
+    : POI_VISIBLE_MAX_ZOOM;
   const currentZoom = map.getZoom();
-  const safeCurrentZoom = typeof currentZoom === "number" ? currentZoom : MAP_MIN_ZOOM;
+  const safeCurrentZoom =
+    typeof currentZoom === "number" ? currentZoom : MAP_MIN_ZOOM;
 
   if (!bounds) {
     map.setZoomAndCenter(
       Math.min(safeCurrentZoom + CLUSTER_ZOOM_STEP, maxZoom),
       new AMap.LngLat(cluster.lng, cluster.lat),
-      true
+      true,
     );
     return;
   }
 
   const [zoom, center] = map.getFitZoomAndCenterByBounds(
     new AMap.Bounds(bounds.southWest, bounds.northEast),
-    [...CLUSTER_FIT_PADDING]
+    [...CLUSTER_FIT_PADDING],
   );
 
   const nextZoom = resolveClusterExpansionZoom(
     safeCurrentZoom,
     typeof zoom === "number" ? zoom : null,
-    maxZoom
+    maxZoom,
   );
 
   if (center) {
@@ -720,7 +792,7 @@ function focusCluster(map: any, AMap: any, cluster: ClusterGroup<DisplayMapSite>
   map.setZoomAndCenter(
     Math.min(safeCurrentZoom + CLUSTER_ZOOM_STEP, maxZoom),
     new AMap.LngLat(cluster.lng, cluster.lat),
-    true
+    true,
   );
 }
 
@@ -729,7 +801,10 @@ function getMapMaxZoom(map: any) {
   return Array.isArray(zoomRange) ? zoomRange[1] : POI_VISIBLE_MAX_ZOOM;
 }
 
-function isSameViewport(a: MapViewport | null | undefined, b: MapViewport | null | undefined) {
+function isSameViewport(
+  a: MapViewport | null | undefined,
+  b: MapViewport | null | undefined,
+) {
   if (!a || !b) return false;
 
   return (

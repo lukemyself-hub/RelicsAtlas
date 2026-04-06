@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle, Home } from "lucide-react";
+import { Compass, Home } from "lucide-react";
 import { useLocation } from "wouter";
 
 export default function NotFound() {
@@ -11,42 +11,39 @@ export default function NotFound() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
-      <Card className="w-full max-w-lg mx-4 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-        <CardContent className="pt-8 pb-8 text-center">
-          <div className="flex justify-center mb-6">
-            <div className="relative">
-              <div className="absolute inset-0 bg-red-100 rounded-full animate-pulse" />
-              <AlertCircle className="relative h-16 w-16 text-red-500" />
+    <div className="page-shell min-h-screen w-full px-4 py-10">
+      <div className="mx-auto flex min-h-[80vh] max-w-5xl items-center justify-center">
+        <Card className="w-full max-w-2xl border-border/70 bg-white/90">
+          <CardContent className="px-8 py-10 text-center md:px-12 md:py-12">
+            <div className="mb-7 flex justify-center">
+              <div className="flex h-20 w-20 items-center justify-center rounded-[28px] bg-primary/10 text-primary shadow-[0_18px_36px_rgba(5,122,93,0.12)]">
+                <Compass className="h-10 w-10" />
+              </div>
             </div>
-          </div>
 
-          <h1 className="text-4xl font-bold text-slate-900 mb-2">404</h1>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
+              404
+            </p>
+            <h1 className="mt-3 font-display text-5xl font-semibold text-foreground md:text-6xl">
+              这页走丢了
+            </h1>
 
-          <h2 className="text-xl font-semibold text-slate-700 mb-4">
-            Page Not Found
-          </h2>
+            <p className="mx-auto mt-5 max-w-xl text-base leading-8 text-muted-foreground md:text-lg">
+              你访问的页面不存在，或者它已经回到了主地图。回到首页，我们继续从文保地图开始。
+            </p>
 
-          <p className="text-slate-600 mb-8 leading-relaxed">
-            Sorry, the page you are looking for doesn't exist.
-            <br />
-            It may have been moved or deleted.
-          </p>
-
-          <div
-            id="not-found-button-group"
-            className="flex flex-col sm:flex-row gap-3 justify-center"
-          >
-            <Button
-              onClick={handleGoHome}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
+            <div
+              id="not-found-button-group"
+              className="mt-8 flex justify-center"
             >
-              <Home className="w-4 h-4 mr-2" />
-              Go Home
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+              <Button onClick={handleGoHome} size="lg" className="px-7">
+                <Home className="w-4 h-4" />
+                返回首页
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
