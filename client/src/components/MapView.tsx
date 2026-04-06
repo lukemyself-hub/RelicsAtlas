@@ -27,6 +27,7 @@ interface MapViewProps {
   userLocation?: { lat: number; lng: number } | null;
   highlightSiteId?: number | null;
   locateRequest?: number | null;
+  fitRequest?: number;
   initialViewport?: {
     center: { lat: number; lng: number };
     zoom: number;
@@ -75,6 +76,7 @@ export default function MapView({
   userLocation,
   highlightSiteId,
   locateRequest,
+  fitRequest,
   initialViewport,
   onViewportChange,
   onHighlightHandled,
@@ -95,6 +97,7 @@ export default function MapView({
   const initialViewportRef = useRef(initialViewport ?? null);
   const onViewportChangeRef = useRef(onViewportChange);
   const lastViewportRef = useRef<MapViewport | null>(null);
+  const lastFitRequestRef = useRef<number | undefined>(undefined);
   const [mapLoaded, setMapLoaded] = useState(false);
   const displaySites = useMemo(
     () =>
@@ -521,6 +524,55 @@ export default function MapView({
     );
     onLocateHandled?.();
   }, [closeInfoWindow, displayUserLocation, locateRequest, mapLoaded, onLocateHandled]);
+
+  useEffect(() => {
+    if (fitRequest == null || fitRequest === lastFitRequestRef.current) return;
+
+    const map = mapRef.current;
+    const AMap = (window as any).AMap;
+    if (!map || !AMap || displaySites.length === 0) {
+      lastFitRequestRef.current = fitRequest;
+      return;
+    }
+
+    closeInfoWindow();
+    lastFitRequestRef.current = fitRequest;
+
+    if (displaySites.length === 1) {
+      const site = displaySites[0];
+      map.setZoomAndCenter(
+        clampZoomLevel(SITE_FOCUS_ZOOM, MAP_MIN_ZOOM, getMapMaxZoom(map)),
+        new AMap.LngLat(site.displayLongitude, site.displayLatitude),
+        true
+      );
+      return;
+    }
+
+    const bounds = getClusterFocusBounds(
+      displaySites.map((site) => ({
+        ...site,
+        latitude: site.displayLatitude,
+        longitude: site.displayLongitude,
+      }))
+    );
+    if (!bounds) return;
+
+    const [zoom, center] = map.getFitZoomAndCenterByBounds(
+      new AMap.Bounds(bounds.southWest, bounds.northEast),
+      [...CLUSTER_FIT_PADDING]
+    );
+    if (!center) return;
+
+    map.setZoomAndCenter(
+      clampZoomLevel(
+        typeof zoom === "number" ? zoom : DEFAULT_VIEWPORT.zoom,
+        MAP_MIN_ZOOM,
+        getMapMaxZoom(map)
+      ),
+      center,
+      true
+    );
+  }, [closeInfoWindow, displaySites, fitRequest]);
 
   useEffect(() => {
     if (highlightSiteId == null) return;
