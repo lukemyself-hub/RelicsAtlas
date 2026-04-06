@@ -431,43 +431,45 @@ export default function Home() {
         />
       )}
 
-      <header className="relative z-20 shrink-0 border-b border-black/10 bg-[linear-gradient(180deg,#0b765e_0%,#045744_100%)] text-white shadow-[0_20px_40px_rgba(4,39,31,0.18)]">
-        <div className="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 pb-4 pt-[calc(env(safe-area-inset-top)+0.95rem)] md:px-6 md:pb-5 md:pt-6">
-          <div className="flex shrink-0 items-center gap-3">
-            <Link
-              href="/about"
-              className="group flex items-center gap-3 rounded-[22px] transition-opacity hover:opacity-92 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a6d57]"
-              aria-label="进入关于页面"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-white/16 bg-white/10 p-1 shadow-[0_12px_24px_rgba(0,0,0,0.12)] backdrop-blur transition-transform group-hover:scale-[1.02]">
-                <img
-                  src="/favicon.svg"
-                  alt="全国文物保护单位地图"
-                  className="h-full w-full rounded-[14px]"
-                />
-              </div>
-              <div className="hidden min-w-0 sm:block">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/68">
-                  Relics Atlas
-                </p>
-                <h1 className="mt-1 font-display text-3xl font-semibold leading-none text-white">
-                  文保地图
-                </h1>
-              </div>
-            </Link>
+      {!selectedSiteId && (
+        <header className="relative z-20 shrink-0 border-b border-black/10 bg-[linear-gradient(180deg,#0b765e_0%,#045744_100%)] text-white shadow-[0_20px_40px_rgba(4,39,31,0.18)]">
+          <div className="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 pb-4 pt-[calc(env(safe-area-inset-top)+0.95rem)] md:px-6 md:pb-5 md:pt-6">
+            <div className="flex shrink-0 items-center gap-3">
+              <Link
+                href="/about"
+                className="group flex items-center gap-3 rounded-[22px] transition-opacity hover:opacity-92 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a6d57]"
+                aria-label="进入关于页面"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-white/16 bg-white/10 p-1 shadow-[0_12px_24px_rgba(0,0,0,0.12)] backdrop-blur transition-transform group-hover:scale-[1.02]">
+                  <img
+                    src="/favicon.svg"
+                    alt="全国文物保护单位地图"
+                    className="h-full w-full rounded-[14px]"
+                  />
+                </div>
+                <div className="hidden min-w-0 sm:block">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/68">
+                    Relics Atlas
+                  </p>
+                  <h1 className="mt-1 font-display text-3xl font-semibold leading-none text-white">
+                    文保地图
+                  </h1>
+                </div>
+              </Link>
+            </div>
+            <div className="min-w-0 flex-1">
+              <SearchBar
+                filters={filters}
+                draftKeyword={draftKeyword}
+                onDraftKeywordChange={setDraftKeyword}
+                onSearchSubmit={handleSearchSubmit}
+                onFiltersChange={handleFiltersChange}
+                filterOptions={resolvedFilterOptions}
+              />
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <SearchBar
-              filters={filters}
-              draftKeyword={draftKeyword}
-              onDraftKeywordChange={setDraftKeyword}
-              onSearchSubmit={handleSearchSubmit}
-              onFiltersChange={handleFiltersChange}
-              filterOptions={resolvedFilterOptions}
-            />
-          </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       {!selectedSiteId && (
         <section className="shrink-0 border-b border-border/70 bg-[rgba(248,244,237,0.9)] backdrop-blur-sm">
