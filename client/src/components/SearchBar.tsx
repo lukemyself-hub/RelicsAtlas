@@ -11,56 +11,55 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { useComposition } from "@/hooks/useComposition";
 import { cn } from "@/lib/utils";
 import type { SearchFilters, FilterOptions } from "@/types";
 import { BATCH_ORDER, DEFAULT_BATCHES } from "@/lib/site-data";
 
 interface SearchBarProps {
   filters: SearchFilters;
+  draftKeyword: string;
+  onDraftKeywordChange: (keyword: string) => void;
+  onSearchSubmit: () => void;
   onFiltersChange: (filters: SearchFilters) => void;
   filterOptions: FilterOptions | undefined;
-  isLoading?: boolean;
 }
 
 export default function SearchBar({
   filters,
+  draftKeyword,
+  onDraftKeywordChange,
+  onSearchSubmit,
   onFiltersChange,
   filterOptions,
-  isLoading,
 }: SearchBarProps) {
   const [showFilters, setShowFilters] = useState(false);
-  const [localKeyword, setLocalKeyword] = useState(filters.keyword);
   const [eraKeyword, setEraKeyword] = useState("");
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const filterRef = useRef<HTMLDivElement>(null);
-
-  // Debounce keyword search
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      if (localKeyword !== filters.keyword) {
-        onFiltersChange({ ...filters, keyword: localKeyword });
+  const composition = useComposition<HTMLInputElement>({
+    onKeyDown: (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        onSearchSubmit();
       }
-    }, 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [filters, localKeyword, onFiltersChange]);
+    },
+  });
 
-  useEffect(() => {
-    setLocalKeyword(filters.keyword);
-  }, [filters.keyword]);
-
-  // Close filter panel on outside click
   useEffect(() => {
     if (!showFilters) return;
-    const handler = (e: MouseEvent) => {
-      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+    const handler = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        filterRef.current &&
+        target instanceof Node &&
+        !filterRef.current.contains(target)
+      ) {
         setShowFilters(false);
       }
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+
+    document.addEventListener("pointerdown", handler, true);
+    return () => document.removeEventListener("pointerdown", handler, true);
   }, [showFilters]);
 
   useEffect(() => {
@@ -89,57 +88,75 @@ export default function SearchBar({
   }, [eraKeyword, filterOptions?.eras]);
 
   const clearAllFilters = () => {
-    setLocalKeyword("");
+    onDraftKeywordChange("");
     onFiltersChange({ keyword: "", batches: [...DEFAULT_BATCHES], types: [], era: "" });
   };
 
   return (
     <div className="relative" ref={filterRef}>
       <div className="flex items-center gap-2">
-        {/* Search input */}
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="搜索文保单位名称..."
-            value={localKeyword}
-            onChange={(e) => setLocalKeyword(e.target.value)}
-            className="pl-9 pr-8 h-10 bg-white shadow-sm border-border/60"
-          />
-          {localKeyword && (
-            <button
-              onClick={() => {
-                setLocalKeyword("");
-                onFiltersChange({ ...filters, keyword: "" });
-              }}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
+        <form
+          className="flex min-w-0 flex-1 items-center gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSearchSubmit();
+          }}
+        >
+          <div className="relative min-w-0 flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              enterKeyHint="search"
+              placeholder="搜索文保单位名称..."
+              value={draftKeyword}
+              onChange={(e) => onDraftKeywordChange(e.target.value)}
+              onKeyDown={composition.onKeyDown}
+              onCompositionStart={composition.onCompositionStart}
+              onCompositionEnd={composition.onCompositionEnd}
+              className="h-10 bg-white pl-9 pr-8 shadow-sm border-border/60"
+            />
+            {draftKeyword && (
+              <button
+                type="button"
+                onClick={() => {
+                  onDraftKeywordChange("");
+                  onFiltersChange({ ...filters, keyword: "" });
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label="清空搜索词"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
 
-        {/* Filter toggle */}
+          <Button type="submit" size="sm" className="h-10 shrink-0 px-3 shadow-sm">
+            搜索
+          </Button>
+        </form>
+
         <Button
           variant={activeFilterCount > 0 ? "default" : "outline"}
           size="sm"
           onClick={() => setShowFilters(!showFilters)}
-          className="h-10 px-3 gap-1.5 shrink-0 shadow-sm"
+          className="h-10 shrink-0 gap-1.5 px-3 shadow-sm"
         >
           <SlidersHorizontal className="h-4 w-4" />
           <span className="hidden sm:inline">筛选</span>
           {activeFilterCount > 0 && (
-            <Badge variant="secondary" className="h-5 w-5 p-0 flex items-center justify-center text-xs rounded-full ml-0.5">
+            <Badge
+              variant="secondary"
+              className="ml-0.5 flex h-5 w-5 items-center justify-center rounded-full p-0 text-xs"
+            >
               {activeFilterCount}
             </Badge>
           )}
         </Button>
       </div>
 
-      {/* Filter panel */}
       {showFilters && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-lg border border-border/60 p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="flex items-center justify-between mb-3">
+        <div className="absolute left-0 right-0 top-full z-50 mt-2 animate-in slide-in-from-top-2 fade-in rounded-lg border border-border/60 bg-white p-4 shadow-lg duration-200">
+          <div className="mb-3 flex items-center justify-between">
             <span className="text-sm font-medium text-foreground">筛选条件</span>
             {activeFilterCount > 0 && (
               <button
@@ -151,9 +168,8 @@ export default function SearchBar({
             )}
           </div>
 
-          {/* Batch filter - multi-select */}
           <div className="mb-3">
-            <div className="flex items-center justify-between mb-1.5">
+            <div className="mb-1.5 flex items-center justify-between">
               <label className="text-xs text-muted-foreground">批次</label>
               <div className="flex items-center gap-3">
                 <button
@@ -185,10 +201,10 @@ export default function SearchBar({
                       batches: next,
                     });
                   }}
-                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                  className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
                     filters.batches.includes(b)
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-secondary/50 text-secondary-foreground border-transparent hover:bg-secondary"
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-transparent bg-secondary/50 text-secondary-foreground hover:bg-secondary"
                   }`}
                 >
                   {b}
@@ -197,9 +213,8 @@ export default function SearchBar({
             </div>
           </div>
 
-          {/* Type filter - multi-select */}
           <div className="mb-3">
-            <div className="flex items-center justify-between mb-1.5">
+            <div className="mb-1.5 flex items-center justify-between">
               <label className="text-xs text-muted-foreground">文物类型</label>
               {filters.types.length > 0 && (
                 <button
@@ -219,22 +234,22 @@ export default function SearchBar({
                     key={t}
                     onClick={() => {
                       if (filters.types.length === 0) {
-                        // All selected → deselect this one
                         onFiltersChange({ ...filters, types: allTypes.filter((x) => x !== t) });
                       } else if (filters.types.includes(t)) {
                         const next = filters.types.filter((x) => x !== t);
-                        // If deselecting the last one, reset to all
                         onFiltersChange({ ...filters, types: next.length === 0 ? [] : next });
                       } else {
                         const next = [...filters.types, t];
-                        // If all are now selected, reset to empty (= all)
-                        onFiltersChange({ ...filters, types: next.length === allTypes.length ? [] : next });
+                        onFiltersChange({
+                          ...filters,
+                          types: next.length === allTypes.length ? [] : next,
+                        });
                       }
                     }}
-                    className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                    className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
                       isSelected
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-secondary/50 text-secondary-foreground border-transparent hover:bg-secondary"
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-transparent bg-secondary/50 text-secondary-foreground hover:bg-secondary"
                     }`}
                   >
                     {t}
@@ -244,10 +259,9 @@ export default function SearchBar({
             </div>
           </div>
 
-          {/* Era filter */}
           <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">时代</label>
-            <div className="rounded-md border border-border overflow-hidden">
+            <label className="mb-1.5 block text-xs text-muted-foreground">时代</label>
+            <div className="overflow-hidden rounded-md border border-border">
               <Command shouldFilter={false}>
                 <CommandInput
                   value={eraKeyword}

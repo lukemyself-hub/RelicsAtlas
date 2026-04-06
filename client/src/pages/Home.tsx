@@ -1,14 +1,33 @@
-import { useState, useCallback, useMemo, useEffect, useDeferredValue, startTransition } from "react";
-import { Map, List, Locate, Loader2, Landmark } from "lucide-react";
+import { useState, useCallback, useMemo, useEffect, startTransition } from "react";
+import {
+  Map,
+  List,
+  Locate,
+  Loader2,
+  Landmark,
+  SearchX,
+  SlidersHorizontal,
+} from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useLocation } from "@/contexts/LocationContext";
 import MapView from "@/components/MapView";
 import SearchBar from "@/components/SearchBar";
 import SiteListItem from "@/components/SiteListItem";
 import SiteDetail from "@/components/SiteDetail";
 import LocationPrompt from "@/components/LocationPrompt";
-import { DEFAULT_BATCHES, buildFilterOptionsFromSites, fetchNormalizedSites, haversineKm } from "@/lib/site-data";
+import {
+  BATCH_ORDER,
+  DEFAULT_BATCHES,
+  buildFilterOptionsFromSites,
+  fetchNormalizedSites,
+  haversineKm,
+} from "@/lib/site-data";
+import {
+  deriveSearchAssist,
+  prepareSitesForSearch,
+} from "@/lib/site-search";
 import type { HeritageSite, SearchFilters } from "@/types";
 
 type ViewMode = "map" | "list";
@@ -17,14 +36,37 @@ type MapViewport = {
   zoom: number;
 };
 
+type SearchMessage = {
+  title: string;
+  description: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  secondaryLabel?: string;
+  onSecondaryAction?: () => void;
+};
+
+function isSameFilters(a: SearchFilters, b: SearchFilters) {
+  return (
+    a.keyword === b.keyword &&
+    a.era === b.era &&
+    a.batches.length === b.batches.length &&
+    a.types.length === b.types.length &&
+    a.batches.every((batch, index) => batch === b.batches[index]) &&
+    a.types.every((type, index) => type === b.types[index])
+  );
+}
+
 export default function Home() {
   const [viewMode, setViewMode] = useState<ViewMode>("map");
   const [selectedSiteId, setSelectedSiteId] = useState<number | null>(null);
   const [highlightSiteId, setHighlightSiteId] = useState<number | null>(null);
   const [locateRequest, setLocateRequest] = useState<number | null>(null);
   const [mapViewport, setMapViewport] = useState<MapViewport | null>(null);
+  const [mapFitRequest, setMapFitRequest] = useState(0);
+  const [pendingSearchFit, setPendingSearchFit] = useState<SearchFilters | null>(null);
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [hasPrompted, setHasPrompted] = useState(false);
+  const [draftKeyword, setDraftKeyword] = useState("");
   const [filters, setFilters] = useState<SearchFilters>({
     keyword: "",
     batches: [...DEFAULT_BATCHES],
@@ -36,7 +78,6 @@ export default function Home() {
 
   const location = useLocation();
 
-  // Show location prompt on first load if not yet granted/denied
   useEffect(() => {
     if (
       location.hasCheckedPermission &&
@@ -59,43 +100,17 @@ export default function Home() {
   });
 
   const loadError = sitesError;
-  const deferredKeyword = useDeferredValue(filters.keyword);
 
-  const preparedSites = useMemo(() => {
-    if (!allSites) return [];
+  const preparedSites = useMemo(
+    () => (allSites ? prepareSitesForSearch(allSites) : []),
+    [allSites]
+  );
 
-    return allSites.map((site) => ({
-      site,
-      batch: site.batch,
-      type: site.type,
-      eraText: site.era?.toLowerCase() ?? "",
-      searchText: [site.name, site.address ?? "", site.type ?? "", site.era ?? ""]
-        .join(" ")
-        .toLowerCase(),
-    }));
-  }, [allSites]);
-
-  // Filter map data based on search/filter criteria
-  const filteredMapData = useMemo(() => {
-    let filtered = preparedSites;
-    if (deferredKeyword) {
-      const kw = deferredKeyword.trim().toLowerCase();
-      filtered = filtered.filter((entry) => entry.searchText.includes(kw));
-    }
-    if (filters.batches.length > 0) {
-      filtered = filtered.filter((entry) => entry.batch !== null && filters.batches.includes(entry.batch));
-    } else {
-      filtered = [];
-    }
-    if (filters.types.length > 0) {
-      filtered = filtered.filter((entry) => filters.types.includes(entry.type ?? ""));
-    }
-    if (filters.era) {
-      const eraQuery = filters.era.toLowerCase();
-      filtered = filtered.filter((entry) => entry.eraText.includes(eraQuery));
-    }
-    return filtered.map((entry) => entry.site);
-  }, [deferredKeyword, filters, preparedSites]);
+  const searchAssist = useMemo(
+    () => deriveSearchAssist(preparedSites, filters),
+    [filters, preparedSites]
+  );
+  const filteredMapData = searchAssist.strictResults;
 
   const sortedList = useMemo(() => {
     const withDistance = filteredMapData.map((site) => ({
@@ -124,12 +139,13 @@ export default function Home() {
     return withDistance;
   }, [filteredMapData, location.granted, location.latitude, location.longitude]);
 
-  const listData = useMemo(() => {
-    return {
+  const listData = useMemo(
+    () => ({
       total: sortedList.length,
       items: sortedList.slice(listOffset, listOffset + LIST_LIMIT),
-    };
-  }, [LIST_LIMIT, listOffset, sortedList]);
+    }),
+    [LIST_LIMIT, listOffset, sortedList]
+  );
 
   const resolvedFilterOptions = useMemo(
     () => (allSites ? buildFilterOptionsFromSites(allSites) : undefined),
@@ -139,8 +155,33 @@ export default function Home() {
   const listLoading = sitesLoading;
   const mapLoading = sitesLoading;
   const selectedSite = useMemo(
-    () => filteredMapData.find((site) => site.id === selectedSiteId) ?? allSites?.find((site) => site.id === selectedSiteId) ?? null,
+    () =>
+      filteredMapData.find((site) => site.id === selectedSiteId) ??
+      allSites?.find((site) => site.id === selectedSiteId) ??
+      null,
     [allSites, filteredMapData, selectedSiteId]
+  );
+
+  const applyFilters = useCallback(
+    (
+      nextFilters: SearchFilters,
+      options?: {
+        fitMap?: boolean;
+        syncDraftKeyword?: boolean;
+      }
+    ) => {
+      startTransition(() => {
+        setFilters(nextFilters);
+      });
+      if (options?.syncDraftKeyword) {
+        setDraftKeyword(nextFilters.keyword);
+      }
+      setListOffset(0);
+      if (options?.fitMap) {
+        setPendingSearchFit(viewMode === "map" ? nextFilters : null);
+      }
+    },
+    [viewMode]
   );
 
   const handleSiteClick = useCallback((id: number) => {
@@ -165,12 +206,61 @@ export default function Home() {
     setHighlightSiteId((current) => (current === siteId ? null : current));
   }, []);
 
-  const handleFiltersChange = useCallback((newFilters: SearchFilters) => {
-    startTransition(() => {
-      setFilters(newFilters);
+  const handleFiltersChange = useCallback(
+    (newFilters: SearchFilters) => {
+      applyFilters(newFilters);
+    },
+    [applyFilters]
+  );
+
+  const handleSearchSubmit = useCallback(() => {
+    applyFilters(
+      {
+        ...filters,
+        keyword: draftKeyword.trim(),
+      },
+      {
+        fitMap: true,
+      }
+    );
+  }, [applyFilters, draftKeyword, filters]);
+
+  const handleResetDefaultFilters = useCallback(() => {
+    applyFilters(
+      {
+        keyword: filters.keyword,
+        batches: [...DEFAULT_BATCHES],
+        types: [],
+        era: "",
+      },
+      {
+        fitMap: true,
+      }
+    );
+  }, [applyFilters, filters.keyword]);
+
+  const handleRelaxFilters = useCallback(() => {
+    applyFilters(
+      {
+        ...filters,
+        batches: [...BATCH_ORDER],
+        types: [],
+        era: "",
+      },
+      {
+        fitMap: true,
+      }
+    );
+  }, [applyFilters, filters]);
+
+  const handleApplySuggestedFilters = useCallback(() => {
+    const topSuggestion = searchAssist.suggestions[0];
+    if (!topSuggestion) return;
+
+    applyFilters(topSuggestion.nextFilters, {
+      fitMap: true,
     });
-    setListOffset(0);
-  }, []);
+  }, [applyFilters, searchAssist.suggestions]);
 
   const handleLocationAllow = useCallback(() => {
     location.requestLocation();
@@ -193,25 +283,76 @@ export default function Home() {
   const totalPages = listData ? Math.ceil(listData.total / LIST_LIMIT) : 0;
   const currentPage = Math.floor(listOffset / LIST_LIMIT) + 1;
 
+  useEffect(() => {
+    if (!pendingSearchFit) return;
+    if (!isSameFilters(filters, pendingSearchFit)) return;
+
+    if (filteredMapData.length > 0) {
+      setMapFitRequest((current) => current + 1);
+    }
+    setPendingSearchFit(null);
+  }, [filteredMapData.length, filters, pendingSearchFit]);
+
+  const searchMessage = useMemo<SearchMessage | null>(() => {
+    if (filteredMapData.length > 0) return null;
+
+    if (searchAssist.hasKeyword && searchAssist.relaxedResults.length > 0) {
+      const topSuggestion = searchAssist.suggestions[0];
+      return {
+        title: "当前关键词在其他筛选条件下有结果",
+        description: topSuggestion
+          ? `放宽“${topSuggestion.label.replace("放宽", "").replace("筛选", "")}”后可找到 ${topSuggestion.count} 处文保单位。你也可以直接清空其他筛选条件查看全部 ${searchAssist.relaxedResults.length} 条相关结果。`
+          : `如果放宽批次、类型或时代筛选，可找到 ${searchAssist.relaxedResults.length} 条相关结果。`,
+        actionLabel: topSuggestion ? topSuggestion.label : "放宽筛选查看",
+        onAction: topSuggestion ? handleApplySuggestedFilters : handleRelaxFilters,
+        secondaryLabel: "恢复默认筛选",
+        onSecondaryAction: handleResetDefaultFilters,
+      };
+    }
+
+    if (searchAssist.hasKeyword) {
+      return {
+        title: "未找到相关文保单位",
+        description: "没有找到与当前关键词匹配的文保单位，请尝试更换关键词后重新搜索。",
+      };
+    }
+
+    return {
+      title: "当前筛选条件下暂无文保单位",
+      description: "可以尝试恢复默认筛选条件，或放宽批次、类型、时代限制。",
+      actionLabel: "恢复默认筛选",
+      onAction: handleResetDefaultFilters,
+    };
+  }, [
+    filteredMapData.length,
+    handleApplySuggestedFilters,
+    handleRelaxFilters,
+    handleResetDefaultFilters,
+    searchAssist.hasKeyword,
+    searchAssist.relaxedResults.length,
+    searchAssist.suggestions,
+  ]);
+
   return (
-    <div className="h-dvh w-full flex flex-col overflow-hidden bg-background">
-      {/* Location prompt */}
+    <div className="flex h-dvh w-full flex-col overflow-hidden bg-background">
       {showLocationPrompt && (
         <LocationPrompt onAllow={handleLocationAllow} onDismiss={handleLocationDismiss} />
       )}
 
-      {/* Top bar */}
-      <header className="bg-white border-b border-border/40 shadow-sm z-20 shrink-0">
+      <header className="z-20 shrink-0 border-b border-border/40 bg-white shadow-sm">
         <div className="flex items-center gap-2 px-3 py-2">
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
+          <div className="shrink-0 flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary">
               <Landmark className="h-4 w-4 text-primary-foreground" />
             </div>
-            <h1 className="text-base font-semibold text-foreground hidden sm:block">文保地图</h1>
+            <h1 className="hidden text-base font-semibold text-foreground sm:block">文保地图</h1>
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0 flex-1">
             <SearchBar
               filters={filters}
+              draftKeyword={draftKeyword}
+              onDraftKeywordChange={setDraftKeyword}
+              onSearchSubmit={handleSearchSubmit}
               onFiltersChange={handleFiltersChange}
               filterOptions={resolvedFilterOptions}
             />
@@ -219,13 +360,11 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main content */}
-      <div className="flex-1 relative overflow-hidden">
-        {/* Map view */}
+      <div className="relative flex-1 overflow-hidden">
         {viewMode === "map" && !selectedSiteId && (
           <div className="absolute inset-0">
             {loadError ? (
-              <div className="flex items-center justify-center h-full px-6 text-center">
+              <div className="flex h-full items-center justify-center px-6 text-center">
                 <div className="max-w-sm rounded-xl border border-destructive/20 bg-white p-4 shadow-sm">
                   <p className="text-sm font-medium text-foreground">POI 数据加载失败</p>
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -234,7 +373,7 @@ export default function Home() {
                 </div>
               </div>
             ) : mapLoading ? (
-              <div className="flex items-center justify-center h-full">
+              <div className="flex h-full items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : (
@@ -244,6 +383,7 @@ export default function Home() {
                 userLocation={userLocation}
                 highlightSiteId={highlightSiteId}
                 locateRequest={locateRequest}
+                fitRequest={mapFitRequest}
                 initialViewport={mapViewport}
                 onViewportChange={handleViewportChange}
                 onHighlightHandled={handleHighlightHandled}
@@ -251,18 +391,27 @@ export default function Home() {
               />
             )}
 
-            {/* Map overlay: result count */}
-            <div className="absolute top-3 left-3 z-10">
-              <div className="bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-md text-xs text-muted-foreground">
+            <div className="absolute left-3 top-3 z-10">
+              <div className="rounded-lg bg-white/90 px-3 py-1.5 text-xs text-muted-foreground shadow-md backdrop-blur-sm">
                 共 <span className="font-semibold text-foreground">{filteredMapData.length}</span> 处文保单位
+                {filters.keyword && (
+                  <span className="ml-1 text-[11px] text-muted-foreground/90">
+                    搜索词: {filters.keyword}
+                  </span>
+                )}
               </div>
             </div>
 
-            {/* User location button */}
+            {searchMessage && !mapLoading && !loadError && (
+              <div className="absolute left-3 right-3 top-16 z-10 sm:left-1/2 sm:max-w-xl sm:-translate-x-1/2">
+                <SearchFeedbackCard message={searchMessage} />
+              </div>
+            )}
+
             {!location.granted && !location.denied && (
               <button
                 onClick={() => setShowLocationPrompt(true)}
-                className="absolute bottom-20 right-3 z-10 w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-accent transition-colors"
+                className="absolute bottom-20 right-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-lg transition-colors hover:bg-accent"
                 title="获取我的位置"
               >
                 <Locate className="h-5 w-5 text-muted-foreground" />
@@ -276,7 +425,7 @@ export default function Home() {
                     setLocateRequest(Date.now());
                   }
                 }}
-                className="absolute bottom-20 right-3 z-10 w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-accent transition-colors"
+                className="absolute bottom-20 right-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-lg transition-colors hover:bg-accent"
                 title="我的位置"
               >
                 <Locate className="h-5 w-5 text-primary" />
@@ -285,31 +434,34 @@ export default function Home() {
           </div>
         )}
 
-        {/* List view */}
         {viewMode === "list" && !selectedSiteId && (
-          <div className="absolute inset-0 bg-white flex flex-col">
-            {/* Sort indicator */}
-            <div className="px-3 py-2 border-b border-border/30 bg-muted/30 text-xs text-muted-foreground flex items-center justify-between">
+          <div className="absolute inset-0 flex flex-col bg-white">
+            <div className="flex items-center justify-between border-b border-border/30 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
               <span>
                 共 {listData?.total ?? 0} 条结果
                 {location.granted ? "（按距离排序）" : "（按批次排序）"}
               </span>
             </div>
 
-            {/* List */}
             <div className="flex-1 overflow-y-auto">
               {listLoading ? (
-                <div className="flex items-center justify-center h-32">
+                <div className="flex h-32 items-center justify-center">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
               ) : loadError ? (
-                <div className="flex flex-col items-center justify-center h-32 text-muted-foreground px-6 text-center">
+                <div className="flex h-32 flex-col items-center justify-center px-6 text-center text-muted-foreground">
                   <p className="text-sm text-foreground">列表数据加载失败</p>
                   <p className="mt-1 text-xs">请稍后刷新重试；如果部署刚更新，通常重新部署后即可恢复。</p>
                 </div>
               ) : listData?.items.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
-                  <p className="text-sm">未找到匹配的文保单位</p>
+                <div className="px-3 py-4">
+                  {searchMessage ? (
+                    <SearchFeedbackCard message={searchMessage} />
+                  ) : (
+                    <div className="flex h-32 flex-col items-center justify-center text-muted-foreground">
+                      <p className="text-sm">未找到匹配的文保单位</p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>
@@ -321,9 +473,8 @@ export default function Home() {
                     />
                   ))}
 
-                  {/* Pagination */}
                   {totalPages > 1 && (
-                    <div className="flex items-center justify-center gap-2 p-3 border-t border-border/30">
+                    <div className="flex items-center justify-center gap-2 border-t border-border/30 p-3">
                       <Button
                         variant="outline"
                         size="sm"
@@ -351,9 +502,8 @@ export default function Home() {
           </div>
         )}
 
-        {/* Detail view */}
         {selectedSiteId && (
-          <div className="absolute inset-0 bg-white z-30 overflow-hidden">
+          <div className="absolute inset-0 z-30 overflow-hidden bg-white">
             <SiteDetail
               site={selectedSite}
               onBack={handleBack}
@@ -363,13 +513,12 @@ export default function Home() {
         )}
       </div>
 
-      {/* Bottom tab bar */}
       {!selectedSiteId && (
-        <nav className="bg-white border-t border-border/40 shadow-[0_-2px_8px_rgba(0,0,0,0.05)] z-20 shrink-0">
-          <div className="flex items-center justify-around max-w-md mx-auto">
+        <nav className="z-20 shrink-0 border-t border-border/40 bg-white shadow-[0_-2px_8px_rgba(0,0,0,0.05)]">
+          <div className="mx-auto flex max-w-md items-center justify-around">
             <button
               onClick={() => setViewMode("map")}
-              className={`flex flex-col items-center gap-0.5 py-2 px-6 transition-colors ${
+              className={`flex flex-col items-center gap-0.5 px-6 py-2 transition-colors ${
                 viewMode === "map"
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
@@ -380,7 +529,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => setViewMode("list")}
-              className={`flex flex-col items-center gap-0.5 py-2 px-6 transition-colors ${
+              className={`flex flex-col items-center gap-0.5 px-6 py-2 transition-colors ${
                 viewMode === "list"
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
@@ -393,5 +542,32 @@ export default function Home() {
         </nav>
       )}
     </div>
+  );
+}
+
+function SearchFeedbackCard({ message }: { message: SearchMessage }) {
+  return (
+    <Alert className="border-border/70 bg-white/95 shadow-md backdrop-blur-sm">
+      <SearchX className="h-4 w-4 text-muted-foreground" />
+      <AlertTitle>{message.title}</AlertTitle>
+      <AlertDescription>
+        <p>{message.description}</p>
+        {(message.actionLabel || message.secondaryLabel) && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {message.actionLabel && message.onAction && (
+              <Button size="sm" onClick={message.onAction}>
+                <SlidersHorizontal className="mr-1 h-4 w-4" />
+                {message.actionLabel}
+              </Button>
+            )}
+            {message.secondaryLabel && message.onSecondaryAction && (
+              <Button size="sm" variant="outline" onClick={message.onSecondaryAction}>
+                {message.secondaryLabel}
+              </Button>
+            )}
+          </div>
+        )}
+      </AlertDescription>
+    </Alert>
   );
 }
