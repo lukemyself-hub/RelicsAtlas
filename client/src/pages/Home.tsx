@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   startTransition,
 } from "react";
@@ -97,6 +98,7 @@ export default function Home() {
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [hasPrompted, setHasPrompted] = useState(false);
   const [draftKeyword, setDraftKeyword] = useState("");
+  const listScrollRef = useRef<HTMLDivElement | null>(null);
   const [filters, setFilters] = useState<SearchFilters>({
     keyword: "",
     batches: [...DEFAULT_BATCHES],
@@ -336,6 +338,15 @@ export default function Home() {
     setPendingSearchFit(null);
   }, [filteredMapData.length, filters, pendingSearchFit]);
 
+  useEffect(() => {
+    if (viewMode !== "list") return;
+
+    listScrollRef.current?.scrollTo({
+      top: 0,
+      behavior: "auto",
+    });
+  }, [listOffset, viewMode]);
+
   const searchMessage = useMemo<SearchMessage | null>(() => {
     if (filteredMapData.length > 0) return null;
 
@@ -552,7 +563,7 @@ export default function Home() {
         )}
 
         {viewMode === "list" && !selectedSiteId && (
-          <div className="absolute inset-0 overflow-y-auto">
+          <div ref={listScrollRef} className="absolute inset-0 overflow-y-auto">
             {sitesLoading ? (
               <div className="flex h-full items-center justify-center">
                 <div className="editorial-card flex items-center gap-3 rounded-full px-5 py-3 text-foreground">
@@ -595,7 +606,7 @@ export default function Home() {
               </div>
             ) : (
               <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-5 pb-28 md:px-6 md:py-6">
-                <div className="editorial-card sticky top-0 z-10 flex items-center justify-between gap-4 rounded-[26px] px-5 py-4">
+                <div className="editorial-card flex items-center justify-between gap-4 rounded-[26px] px-5 py-4">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
                       列表模式
