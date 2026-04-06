@@ -7,3 +7,4 @@ dist/
 *.log
 .DS_Store
 client/public/__manus__/
+.vercel

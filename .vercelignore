@@ -1,0 +1,9 @@
+.git
+.cache
+.codex
+.claude
+.manus-logs
+.tmp
+node_modules
+dist
+*.log
