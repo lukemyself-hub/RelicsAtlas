@@ -9,6 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import introMapJson from "@/generated/site-introductions.json";
+import { buildNavigationUrl } from "@/lib/navigation";
 import { buildBaiduSearchUrl, getSiteIntroduction } from "@/lib/site-data";
 import { resolveSiteTypeIcon } from "@/lib/site-ui";
 import type {
@@ -20,24 +21,6 @@ interface SiteDetailProps {
   site: SiteDetailType | null;
   onBack: () => void;
   onLocateOnMap: (siteId: number) => void;
-}
-
-function getNavigationUrl(name: string, lat: number, lng: number) {
-  // Try to detect mobile
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-  if (isMobile) {
-    // Try native map apps first
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (isIOS) {
-      return `https://maps.apple.com/?q=${encodeURIComponent(name)}&ll=${lat},${lng}`;
-    }
-    // Android - try Amap intent, fallback to web
-    return `https://uri.amap.com/marker?position=${lng},${lat}&name=${encodeURIComponent(name)}&coordinate=wgs84&callnative=1`;
-  }
-
-  // Desktop - use Amap web
-  return `https://uri.amap.com/marker?position=${lng},${lat}&name=${encodeURIComponent(name)}&coordinate=wgs84`;
 }
 
 export default function SiteDetail({
@@ -73,11 +56,11 @@ export default function SiteDetail({
           icon: MapPin,
           action: (
             <a
-              href={getNavigationUrl(
-                site.name,
-                site.mapLatitude,
-                site.mapLongitude,
-              )}
+              href={buildNavigationUrl({
+                name: site.name,
+                latitude: site.mapLatitude,
+                longitude: site.mapLongitude,
+              })}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm font-semibold text-primary"
@@ -99,11 +82,11 @@ export default function SiteDetail({
     action?: React.ReactNode;
   }>;
 
-  const navUrl = getNavigationUrl(
-    site.name,
-    site.mapLatitude,
-    site.mapLongitude,
-  );
+  const navUrl = buildNavigationUrl({
+    name: site.name,
+    latitude: site.mapLatitude,
+    longitude: site.mapLongitude,
+  });
   const introductions = introMapJson as SiteIntroductionMap;
   const intro = getSiteIntroduction(site, introductions);
   const baiduSearchUrl = buildBaiduSearchUrl(site);
