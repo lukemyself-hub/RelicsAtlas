@@ -458,19 +458,19 @@ export default function Home() {
 
       {!selectedSiteId && (
         <section className="shrink-0 border-b border-border/70 bg-[rgba(248,244,237,0.9)] backdrop-blur-sm">
-          <div className="mx-auto flex max-w-7xl items-end justify-between gap-4 px-4 py-3 md:px-6 md:py-4">
+          <div className="mx-auto flex max-w-7xl items-end justify-between gap-4 px-4 py-2.5 md:px-6 md:py-3">
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
                 当前检索
               </p>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                <h2 className="font-display text-[1.75rem] font-semibold text-foreground md:text-[2rem]">
+              <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                <h2 className="font-display text-[1.15rem] font-semibold leading-tight text-foreground md:text-[1.4rem]">
                   {statusTitle}
                 </h2>
                 {activeFilterText && (
                   <Badge
                     variant="outline"
-                    className="border-primary/15 bg-primary/8 px-3 py-1.5 text-[11px] text-primary"
+                    className="border-primary/15 bg-primary/8 px-2.5 py-1 text-[10px] text-primary"
                   >
                     {activeFilterText}
                   </Badge>
@@ -481,7 +481,7 @@ export default function Home() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
                 排序方式
               </p>
-              <p className="mt-1 text-base font-semibold text-foreground">
+              <p className="mt-0.5 text-sm font-semibold text-foreground">
                 {statusSubtitle}
               </p>
             </div>
@@ -530,19 +530,8 @@ export default function Home() {
               />
             )}
 
-            <div className="pointer-events-none absolute left-4 top-4 z-[2] md:left-6 md:top-6">
-              <div className="editorial-card rounded-[24px] px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                  地图模式
-                </p>
-                <p className="mt-1 text-lg font-semibold text-foreground">
-                  {statusTitle}
-                </p>
-              </div>
-            </div>
-
             {searchMessage && !sitesLoading && !loadError && (
-              <div className="absolute left-4 right-4 top-24 z-10 md:left-6 md:right-auto md:top-28 md:max-w-md">
+              <div className="absolute left-4 right-4 top-16 z-10 md:left-6 md:right-auto md:top-20 md:max-w-md">
                 <SearchFeedbackCard message={searchMessage} />
               </div>
             )}

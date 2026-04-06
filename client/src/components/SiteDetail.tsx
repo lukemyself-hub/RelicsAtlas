@@ -79,12 +79,12 @@ export default function SiteDetail({
   return (
     <div className="page-shell flex h-full flex-col">
       <div className="sticky top-0 z-10 border-b border-white/12 bg-[linear-gradient(180deg,#0b6f59_0%,#045744_100%)] text-white shadow-[0_18px_36px_rgba(6,44,34,0.2)]">
-        <div className="mx-auto flex max-w-4xl items-start gap-3 px-4 pb-5 pt-[calc(env(safe-area-inset-top)+1rem)] md:px-6 md:pb-6">
+        <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 pb-4 pt-[calc(env(safe-area-inset-top)+0.8rem)] md:px-6 md:pb-5">
           <Button
             variant="ghost"
             size="icon"
             onClick={onBack}
-            className="mt-1 h-11 w-11 rounded-full border border-white/15 bg-white/10 text-white hover:bg-white/16"
+            className="h-10 w-10 shrink-0 rounded-full border border-white/28 bg-white/20 text-white shadow-[0_10px_24px_rgba(6,44,34,0.16)] hover:bg-white/28"
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -92,12 +92,12 @@ export default function SiteDetail({
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/68">
               全国重点文物保护单位
             </p>
-            <h2 className="font-serif-accent mt-2 text-[2rem] font-semibold leading-tight text-white md:text-[2.35rem]">
+            <h2 className="font-serif-accent mt-1.5 text-[1.7rem] font-semibold leading-tight text-white md:text-[2rem]">
               {site.name}
             </h2>
           </div>
           {site.batch && (
-            <Badge className="mt-1 hidden shrink-0 border-white/15 bg-white/14 px-3 py-1.5 text-[11px] tracking-[0.12em] text-white md:inline-flex">
+            <Badge className="hidden shrink-0 border-white/15 bg-white/14 px-3 py-1.5 text-[11px] tracking-[0.12em] text-white md:inline-flex">
               {site.batch}
             </Badge>
           )}

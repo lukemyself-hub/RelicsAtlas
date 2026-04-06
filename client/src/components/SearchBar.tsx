@@ -42,8 +42,10 @@ export default function SearchBar({
   filterOptions,
 }: SearchBarProps) {
   const [showFilters, setShowFilters] = useState(false);
+  const [isSearchActive, setIsSearchActive] = useState(false);
   const [eraKeyword, setEraKeyword] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
+  const searchFieldRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
   const composition = useComposition<HTMLInputElement>({
     onKeyDown: (event) => {
@@ -296,13 +298,13 @@ export default function SearchBar({
     <div className="relative" ref={rootRef}>
       <div className="flex items-center gap-3">
         <form
-          className="flex min-w-0 flex-1 items-center gap-2"
+          className="flex min-w-0 flex-1 items-center"
           onSubmit={(event) => {
             event.preventDefault();
             onSearchSubmit();
           }}
         >
-          <div className="relative min-w-0 flex-1">
+          <div ref={searchFieldRef} className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#6f756f]" />
             <Input
               type="text"
@@ -313,9 +315,32 @@ export default function SearchBar({
               onKeyDown={composition.onKeyDown}
               onCompositionStart={composition.onCompositionStart}
               onCompositionEnd={composition.onCompositionEnd}
-              className="h-12 border-white/20 bg-white pl-12 pr-11 text-[15px] text-[#202422] shadow-[0_14px_28px_rgba(12,32,25,0.18)] placeholder:text-[#7d837e] focus-visible:border-white/50 focus-visible:ring-white/25 md:h-14 md:text-base"
+              onFocus={() => setIsSearchActive(true)}
+              onBlur={(event) => {
+                const nextTarget = event.relatedTarget;
+                if (
+                  nextTarget instanceof Node &&
+                  searchFieldRef.current?.contains(nextTarget)
+                ) {
+                  return;
+                }
+                setIsSearchActive(false);
+              }}
+              className={cn(
+                "h-12 border-white/18 bg-white pl-12 text-[15px] text-[#202422] shadow-[0_14px_28px_rgba(12,32,25,0.18)] placeholder:text-[#7d837e] focus-visible:border-white/50 focus-visible:ring-white/25 md:h-14 md:text-base",
+                isSearchActive ? "pr-12" : "pr-11",
+              )}
             />
-            {draftKeyword && (
+            {isSearchActive ? (
+              <button
+                type="submit"
+                className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors hover:bg-primary/16"
+                aria-label="执行搜索"
+              >
+                <Search className="h-4 w-4" />
+              </button>
+            ) : (
+              draftKeyword && (
               <button
                 type="button"
                 onClick={() => {
@@ -327,14 +352,9 @@ export default function SearchBar({
               >
                 <X className="h-4 w-4" />
               </button>
+              )
             )}
           </div>
-          <Button
-            type="submit"
-            className="h-12 shrink-0 rounded-full bg-white px-4 text-primary shadow-[0_14px_28px_rgba(12,32,25,0.18)] hover:bg-white/92 md:h-14"
-          >
-            搜索
-          </Button>
         </form>
 
         <div className="relative shrink-0">

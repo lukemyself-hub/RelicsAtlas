@@ -67,8 +67,8 @@ const MAP_MIN_ZOOM = 3;
 const POI_VISIBLE_MAX_ZOOM = 18;
 const SITE_FOCUS_ZOOM = 15;
 const USER_AREA_FALLBACK_ZOOM = 10;
-const INFO_WINDOW_SAFE_MARGIN_MOBILE = [148, 20, 24, 20] as const;
-const INFO_WINDOW_SAFE_MARGIN_DESKTOP = [132, 24, 28, 24] as const;
+const INFO_WINDOW_SAFE_MARGIN_MOBILE = [92, 20, 24, 20] as const;
+const INFO_WINDOW_SAFE_MARGIN_DESKTOP = [104, 24, 28, 24] as const;
 const DEFAULT_VIEWPORT = {
   center: { lng: 104.2, lat: 35.86 },
   zoom: 5,
