@@ -54,20 +54,6 @@ export default function SiteDetail({
           label: "地址",
           value: site.address,
           icon: MapPin,
-          action: (
-            <a
-              href={buildNavigationUrl({
-                name: site.name,
-                latitude: site.mapLatitude,
-                longitude: site.mapLongitude,
-              })}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm font-semibold text-primary"
-            >
-              导航
-            </a>
-          ),
         }
       : null,
     site.era ? { label: "时代", value: site.era, icon: Clock3 } : null,
@@ -79,7 +65,6 @@ export default function SiteDetail({
     label: string;
     value: string;
     icon: React.ComponentType<{ className?: string }>;
-    action?: React.ReactNode;
   }>;
 
   const navUrl = buildNavigationUrl({
@@ -127,34 +112,33 @@ export default function SiteDetail({
             </Badge>
           )}
 
-          <section className="editorial-card rounded-[32px] p-5 md:p-7">
-            <div className="mb-5 flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                <TypeIcon className="h-5 w-5" />
+          <section className="editorial-card rounded-[32px] p-4 md:p-5">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <TypeIcon className="h-[18px] w-[18px]" />
               </div>
-              <h3 className="text-[1.3rem] font-semibold text-foreground md:text-[1.4rem]">
+              <h3 className="text-[1.15rem] font-semibold text-foreground md:text-[1.25rem]">
                 基本信息
               </h3>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               {detailRows.map((row) => (
                 <div
                   key={`${row.label}-${row.value}`}
-                  className="grid grid-cols-[2.75rem_1fr_auto] items-start gap-4 rounded-[24px] border border-border/70 bg-white/70 px-4 py-4"
+                  className="grid grid-cols-[2.5rem_1fr] items-center gap-3 rounded-[22px] border border-border/70 bg-white/70 px-3.5 py-3"
                 >
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                    <row.icon className="h-5 w-5" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <row.icon className="h-[18px] w-[18px]" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-muted-foreground">
+                    <p className="text-[13px] font-medium text-muted-foreground">
                       {row.label}
                     </p>
-                    <p className="mt-1 text-lg font-semibold leading-8 text-foreground">
+                    <p className="mt-0.5 text-base font-semibold leading-6 text-foreground md:text-[1.05rem]">
                       {row.value}
                     </p>
                   </div>
-                  {row.action ? <div className="pt-1">{row.action}</div> : null}
                 </div>
               ))}
             </div>
