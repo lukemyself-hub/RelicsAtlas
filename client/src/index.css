@@ -257,3 +257,10 @@
   font-size: 13px;
   line-height: 36px;
 }
+
+/* AMap controls should stay within the map layer and sit below app overlays */
+.amap-logo,
+.amap-copyright,
+.amap-controls {
+  z-index: 1 !important;
+}

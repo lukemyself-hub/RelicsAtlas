@@ -614,7 +614,7 @@ export default function Home() {
                 ))}
 
                 {totalPages > 1 && (
-                  <div className="editorial-card sticky bottom-4 flex items-center justify-between gap-3 rounded-full px-4 py-3">
+                  <div className="editorial-card mt-2 flex items-center justify-between gap-3 rounded-full px-4 py-3">
                     <Button
                       variant="outline"
                       disabled={currentPage <= 1}

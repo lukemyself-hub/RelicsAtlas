@@ -379,7 +379,7 @@ export default function SearchBar({
       {isMobile && (
         <Drawer open={showFilters} onOpenChange={setShowFilters}>
           <DrawerContent className="rounded-t-[32px] border-border bg-background">
-            <DrawerHeader className="px-5 pb-2 pt-5 text-left">
+            <DrawerHeader className="px-5 pb-5 pt-5 text-left">
               <DrawerTitle className="font-display text-2xl font-semibold text-foreground">
                 筛选文保单位
               </DrawerTitle>
